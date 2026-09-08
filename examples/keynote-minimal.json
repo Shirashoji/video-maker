@@ -1,0 +1,283 @@
+{
+  "name": "Keynote / minimal",
+  "scenes": [
+    {
+      "id": "hero",
+      "duration": 4.0,
+      "background": "#090B10",
+      "caption_mode": "sidecar",
+      "graphics": [
+        {
+          "kind": "text",
+          "y": 0.17,
+          "height": 0.07,
+          "text": "MAKE IT CLEAR",
+          "fill": "#F5F5F7",
+          "stroke_width": 0.0,
+          "enter": "fade"
+        },
+        {
+          "kind": "text",
+          "gradient": {
+            "colors": [
+              "#69B8FF",
+              "#AE8FFF",
+              "#FF9DD8"
+            ]
+          },
+          "x": 0.07,
+          "y": 0.3,
+          "width": 0.86,
+          "height": 0.28,
+          "text": "アイデアを、動かそう。",
+          "fill": "#F5F5F7",
+          "stroke_width": 0.0,
+          "font_size": 0.13,
+          "enter": "slide_up",
+          "animation_seconds": 0.7
+        },
+        {
+          "kind": "text",
+          "start": 0.8,
+          "x": 0.12,
+          "y": 0.66,
+          "width": 0.76,
+          "height": 0.09,
+          "text": "映像と図解で、もっと伝わる。",
+          "fill": "#F5F5F7",
+          "stroke_width": 0.0,
+          "enter": "fade"
+        }
+      ]
+    },
+    {
+      "id": "features",
+      "duration": 4.5,
+      "background": "#090B10",
+      "graphics": [
+        {
+          "kind": "text",
+          "x": 0.08,
+          "y": 0.08,
+          "width": 0.84,
+          "height": 0.13,
+          "text": "一つの映像に、三つの表現。",
+          "fill": "#F5F5F7",
+          "stroke_width": 0.0
+        },
+        {
+          "kind": "rect",
+          "shadow": {
+            "color": "#00000030",
+            "y": 0.014
+          },
+          "start": 0.25,
+          "x": 0.06,
+          "y": 0.3,
+          "width": 0.27,
+          "height": 0.43,
+          "fill": "#1A1F2D",
+          "radius": 0.035,
+          "enter": "slide_up",
+          "animation_seconds": 0.6
+        },
+        {
+          "kind": "text",
+          "start": 0.45,
+          "x": 0.08499999999999999,
+          "y": 0.35,
+          "width": 0.22,
+          "height": 0.1,
+          "text": "01",
+          "fill": "#69B8FF",
+          "stroke_width": 0.0,
+          "align": "left",
+          "enter": "fade"
+        },
+        {
+          "kind": "text",
+          "start": 0.5,
+          "x": 0.08499999999999999,
+          "y": 0.47,
+          "width": 0.22,
+          "height": 0.1,
+          "text": "見せる",
+          "fill": "#F5F5F7",
+          "stroke_width": 0.0,
+          "font_size": 0.06,
+          "align": "left",
+          "enter": "fade"
+        },
+        {
+          "kind": "text",
+          "start": 0.55,
+          "x": 0.08499999999999999,
+          "y": 0.61,
+          "width": 0.22,
+          "height": 0.07,
+          "text": "録画で、実際の動きを。",
+          "fill": "#F5F5F7",
+          "stroke_width": 0.0,
+          "font_size": 0.027,
+          "align": "left",
+          "enter": "fade"
+        },
+        {
+          "kind": "rect",
+          "shadow": {
+            "color": "#00000030",
+            "y": 0.014
+          },
+          "start": 0.47,
+          "x": 0.365,
+          "y": 0.3,
+          "width": 0.27,
+          "height": 0.43,
+          "fill": "#1A1F2D",
+          "radius": 0.035,
+          "enter": "slide_up",
+          "animation_seconds": 0.6
+        },
+        {
+          "kind": "text",
+          "start": 0.6699999999999999,
+          "x": 0.39,
+          "y": 0.35,
+          "width": 0.22,
+          "height": 0.1,
+          "text": "02",
+          "fill": "#AE8FFF",
+          "stroke_width": 0.0,
+          "align": "left",
+          "enter": "fade"
+        },
+        {
+          "kind": "text",
+          "start": 0.72,
+          "x": 0.39,
+          "y": 0.47,
+          "width": 0.22,
+          "height": 0.1,
+          "text": "伝える",
+          "fill": "#F5F5F7",
+          "stroke_width": 0.0,
+          "font_size": 0.06,
+          "align": "left",
+          "enter": "fade"
+        },
+        {
+          "kind": "text",
+          "start": 0.77,
+          "x": 0.39,
+          "y": 0.61,
+          "width": 0.22,
+          "height": 0.07,
+          "text": "図解で、仕組みを。",
+          "fill": "#F5F5F7",
+          "stroke_width": 0.0,
+          "font_size": 0.027,
+          "align": "left",
+          "enter": "fade"
+        },
+        {
+          "kind": "rect",
+          "shadow": {
+            "color": "#00000030",
+            "y": 0.014
+          },
+          "start": 0.69,
+          "x": 0.6699999999999999,
+          "y": 0.3,
+          "width": 0.27,
+          "height": 0.43,
+          "fill": "#1A1F2D",
+          "radius": 0.035,
+          "enter": "slide_up",
+          "animation_seconds": 0.6
+        },
+        {
+          "kind": "text",
+          "start": 0.8899999999999999,
+          "x": 0.695,
+          "y": 0.35,
+          "width": 0.22,
+          "height": 0.1,
+          "text": "03",
+          "fill": "#FF9DD8",
+          "stroke_width": 0.0,
+          "align": "left",
+          "enter": "fade"
+        },
+        {
+          "kind": "text",
+          "start": 0.94,
+          "x": 0.695,
+          "y": 0.47,
+          "width": 0.22,
+          "height": 0.1,
+          "text": "印象に残す",
+          "fill": "#F5F5F7",
+          "stroke_width": 0.0,
+          "font_size": 0.06,
+          "align": "left",
+          "enter": "fade"
+        },
+        {
+          "kind": "text",
+          "start": 0.99,
+          "x": 0.695,
+          "y": 0.61,
+          "width": 0.22,
+          "height": 0.07,
+          "text": "言葉と動きに、メリハリを。",
+          "fill": "#F5F5F7",
+          "stroke_width": 0.0,
+          "font_size": 0.027,
+          "align": "left",
+          "enter": "fade"
+        }
+      ],
+      "transition": "fade"
+    },
+    {
+      "id": "closing",
+      "duration": 3.5,
+      "background": "#090B10",
+      "graphics": [
+        {
+          "kind": "text",
+          "gradient": {
+            "colors": [
+              "#69B8FF",
+              "#AE8FFF",
+              "#FF9DD8"
+            ]
+          },
+          "x": 0.08,
+          "y": 0.3,
+          "width": 0.84,
+          "height": 0.25,
+          "text": "伝わる体験を。",
+          "fill": "#F5F5F7",
+          "stroke_width": 0.0,
+          "font_size": 0.14,
+          "enter": "slide_up",
+          "animation_seconds": 0.7
+        },
+        {
+          "kind": "text",
+          "start": 0.6,
+          "x": 0.15,
+          "y": 0.65,
+          "width": 0.7,
+          "height": 0.1,
+          "text": "次のアイデアを、ここから。",
+          "fill": "#F5F5F7",
+          "stroke_width": 0.0,
+          "enter": "fade"
+        }
+      ],
+      "transition": "fade"
+    }
+  ]
+}

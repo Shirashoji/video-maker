@@ -1,0 +1,27 @@
+{
+  "name": "コードで作る図解とテロップ",
+  "width": 1280,
+  "height": 720,
+  "scenes": [
+    {
+      "id": "flow", "duration": 5, "background": "#101B30",
+      "graphics": [
+        {"kind":"text", "text":"録画に、伝わる説明を。", "x":0.07, "y":0.08, "width":0.86, "height":0.16, "font_size":0.075, "align":"left", "enter":"slide_up"},
+        {"kind":"text", "text":"取り込む", "x":0.07, "y":0.40, "width":0.23, "height":0.19, "style":"banner", "panel":"#245267", "enter":"pop", "start":0.5},
+        {"kind":"arrow", "x":0.32, "y":0.495, "x2":0.37, "y2":0.495, "fill":"#64E8D2", "stroke_width":0.006, "start":1, "enter":"fade"},
+        {"kind":"text", "text":"図で説明", "x":0.39, "y":0.40, "width":0.23, "height":0.19, "style":"banner", "panel":"#245267", "enter":"pop", "start":1.3},
+        {"kind":"arrow", "x":0.64, "y":0.495, "x2":0.69, "y2":0.495, "fill":"#64E8D2", "stroke_width":0.006, "start":1.8, "enter":"fade"},
+        {"kind":"text", "text":"動画に合成", "x":0.71, "y":0.40, "width":0.23, "height":0.19, "style":"banner", "panel":"#245267", "enter":"pop", "start":2.1},
+        {"kind":"text", "text":"配置・色・動きをJSONで編集", "x":0.1, "y":0.73, "width":0.8, "height":0.13, "font_size":0.048, "fill":"#64E8D2", "style":"impact", "start":2.7, "enter":"slide_up"}
+      ]
+    },
+    {
+      "id":"emphasis", "duration":3.5, "transition":"fade", "background":"#101B30",
+      "graphics":[
+        {"kind":"text", "text":"大事なポイントを強調！", "x":0.08, "y":0.3, "width":0.84, "height":0.25, "font_size":0.095, "fill":"#FFE18A", "style":"impact", "enter":"pop"},
+        {"kind":"rect", "x":0.14, "y":0.6, "width":0.16, "height":0.008, "fill":"#64E8D2", "keyframes":[{"time":0,"x":0.14,"y":0.6,"opacity":0,"easing":"linear"},{"time":0.5,"x":0.14,"y":0.6},{"time":2.5,"x":0.70,"y":0.6}]},
+        {"kind":"text", "text":"字幕とは別に、必要な場面だけ表示", "x":0.15, "y":0.72, "width":0.7, "height":0.12, "style":"banner", "enter":"slide_left", "start":0.7}
+      ]
+    }
+  ]
+}

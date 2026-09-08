@@ -1,0 +1,962 @@
+{
+  "$defs": {
+    "CameraKeyframe": {
+      "additionalProperties": false,
+      "properties": {
+        "time": {
+          "minimum": 0,
+          "title": "Time",
+          "type": "number"
+        },
+        "zoom": {
+          "default": 1,
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Zoom",
+          "type": "number"
+        },
+        "x": {
+          "default": 0.5,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.5,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Y",
+          "type": "number"
+        },
+        "easing": {
+          "default": "ease_in_out",
+          "enum": [
+            "linear",
+            "ease_in_out",
+            "ease_out",
+            "hold"
+          ],
+          "title": "Easing",
+          "type": "string"
+        }
+      },
+      "required": [
+        "time"
+      ],
+      "title": "CameraKeyframe",
+      "type": "object"
+    },
+    "Caption": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "start": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "title": "End",
+          "type": "number"
+        }
+      },
+      "required": [
+        "text",
+        "end"
+      ],
+      "title": "Caption",
+      "type": "object"
+    },
+    "Character": {
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "title": "Image",
+          "type": "string"
+        },
+        "mouth_open": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mouth Open"
+        },
+        "side": {
+          "default": "right",
+          "enum": [
+            "left",
+            "right"
+          ],
+          "title": "Side",
+          "type": "string"
+        },
+        "height": {
+          "default": 0.62,
+          "maximum": 0.9,
+          "minimum": 0.1,
+          "title": "Height",
+          "type": "number"
+        }
+      },
+      "required": [
+        "image"
+      ],
+      "title": "Character",
+      "type": "object"
+    },
+    "Gradient": {
+      "additionalProperties": false,
+      "properties": {
+        "colors": {
+          "items": {
+            "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 2,
+          "title": "Colors",
+          "type": "array"
+        },
+        "direction": {
+          "default": "horizontal",
+          "enum": [
+            "horizontal",
+            "vertical",
+            "diagonal"
+          ],
+          "title": "Direction",
+          "type": "string"
+        }
+      },
+      "required": [
+        "colors"
+      ],
+      "title": "Gradient",
+      "type": "object"
+    },
+    "Graphic": {
+      "additionalProperties": false,
+      "description": "Declarative, editable graphics. Coordinates are fractions of the output canvas.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "text",
+            "rect",
+            "ellipse",
+            "arrow",
+            "line",
+            "image"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "fit": {
+          "default": "contain",
+          "enum": [
+            "contain",
+            "cover"
+          ],
+          "title": "Fit",
+          "type": "string"
+        },
+        "gradient": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Gradient"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "shadow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Shadow"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "start": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "x": {
+          "default": 0.1,
+          "maximum": 2,
+          "minimum": -2,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.1,
+          "maximum": 2,
+          "minimum": -2,
+          "title": "Y",
+          "type": "number"
+        },
+        "width": {
+          "default": 0.8,
+          "exclusiveMinimum": 0,
+          "maximum": 2,
+          "title": "Width",
+          "type": "number"
+        },
+        "height": {
+          "default": 0.15,
+          "exclusiveMinimum": 0,
+          "maximum": 2,
+          "title": "Height",
+          "type": "number"
+        },
+        "x2": {
+          "anyOf": [
+            {
+              "maximum": 2,
+              "minimum": -2,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "X2"
+        },
+        "y2": {
+          "anyOf": [
+            {
+              "maximum": 2,
+              "minimum": -2,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Y2"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        },
+        "fill": {
+          "default": "#FFFFFF",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$",
+          "title": "Fill",
+          "type": "string"
+        },
+        "stroke": {
+          "default": "#00000000",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$",
+          "title": "Stroke",
+          "type": "string"
+        },
+        "stroke_width": {
+          "default": 0.003,
+          "maximum": 0.05,
+          "minimum": 0,
+          "title": "Stroke Width",
+          "type": "number"
+        },
+        "radius": {
+          "default": 0.02,
+          "maximum": 0.5,
+          "minimum": 0,
+          "title": "Radius",
+          "type": "number"
+        },
+        "font_size": {
+          "default": 0.055,
+          "exclusiveMinimum": 0,
+          "maximum": 0.5,
+          "title": "Font Size",
+          "type": "number"
+        },
+        "align": {
+          "default": "center",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "title": "Align",
+          "type": "string"
+        },
+        "style": {
+          "default": "plain",
+          "enum": [
+            "plain",
+            "impact",
+            "banner"
+          ],
+          "title": "Style",
+          "type": "string"
+        },
+        "panel": {
+          "default": "#111827E8",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$",
+          "title": "Panel",
+          "type": "string"
+        },
+        "opacity": {
+          "default": 1,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Opacity",
+          "type": "number"
+        },
+        "enter": {
+          "default": "none",
+          "enum": [
+            "none",
+            "fade",
+            "slide_left",
+            "slide_up",
+            "pop"
+          ],
+          "title": "Enter",
+          "type": "string"
+        },
+        "exit": {
+          "default": "none",
+          "enum": [
+            "none",
+            "fade",
+            "slide_left",
+            "slide_up",
+            "pop"
+          ],
+          "title": "Exit",
+          "type": "string"
+        },
+        "animation_seconds": {
+          "default": 0.3,
+          "exclusiveMinimum": 0,
+          "maximum": 5,
+          "title": "Animation Seconds",
+          "type": "number"
+        },
+        "keyframes": {
+          "items": {
+            "$ref": "#/$defs/Keyframe"
+          },
+          "maxItems": 100,
+          "title": "Keyframes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Graphic",
+      "type": "object"
+    },
+    "Keyframe": {
+      "additionalProperties": false,
+      "properties": {
+        "time": {
+          "minimum": 0,
+          "title": "Time",
+          "type": "number"
+        },
+        "x": {
+          "maximum": 2,
+          "minimum": -2,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "maximum": 2,
+          "minimum": -2,
+          "title": "Y",
+          "type": "number"
+        },
+        "scale": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "maximum": 4,
+          "title": "Scale",
+          "type": "number"
+        },
+        "opacity": {
+          "default": 1,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Opacity",
+          "type": "number"
+        },
+        "easing": {
+          "default": "ease_in_out",
+          "enum": [
+            "linear",
+            "ease_in_out",
+            "ease_out",
+            "hold"
+          ],
+          "title": "Easing",
+          "type": "string"
+        }
+      },
+      "required": [
+        "time",
+        "x",
+        "y"
+      ],
+      "title": "Keyframe",
+      "type": "object"
+    },
+    "Music": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "volume": {
+          "default": 0.12,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Volume",
+          "type": "number"
+        },
+        "duck": {
+          "default": true,
+          "title": "Duck",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "Music",
+      "type": "object"
+    },
+    "Scene": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-zA-Z0-9_-]{1,64}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "source_in": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Source In",
+          "type": "number"
+        },
+        "speed": {
+          "default": 1,
+          "maximum": 8,
+          "minimum": 0.25,
+          "title": "Speed",
+          "type": "number"
+        },
+        "crop": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Crop"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "maximum": 3600,
+              "minimum": 0.5,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration"
+        },
+        "background": {
+          "default": "#111827",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Background",
+          "type": "string"
+        },
+        "background_gradient": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Gradient"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "voice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Voice"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "audio": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Audio"
+        },
+        "audio_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Audio Text"
+        },
+        "source_volume": {
+          "default": 0,
+          "maximum": 2,
+          "minimum": 0,
+          "title": "Source Volume",
+          "type": "number"
+        },
+        "source_rect": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Rect"
+        },
+        "camera": {
+          "items": {
+            "$ref": "#/$defs/CameraKeyframe"
+          },
+          "maxItems": 100,
+          "title": "Camera",
+          "type": "array"
+        },
+        "sound_effects": {
+          "items": {
+            "$ref": "#/$defs/SoundEffect"
+          },
+          "maxItems": 100,
+          "title": "Sound Effects",
+          "type": "array"
+        },
+        "caption_mode": {
+          "default": "burn",
+          "enum": [
+            "burn",
+            "sidecar",
+            "off"
+          ],
+          "title": "Caption Mode",
+          "type": "string"
+        },
+        "graphics": {
+          "items": {
+            "$ref": "#/$defs/Graphic"
+          },
+          "maxItems": 100,
+          "title": "Graphics",
+          "type": "array"
+        },
+        "character": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Character"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 150,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "captions": {
+          "items": {
+            "$ref": "#/$defs/Caption"
+          },
+          "maxItems": 100,
+          "title": "Captions",
+          "type": "array"
+        },
+        "transition": {
+          "default": "cut",
+          "enum": [
+            "cut",
+            "fade",
+            "wipeleft",
+            "slideright"
+          ],
+          "title": "Transition",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Scene",
+      "type": "object"
+    },
+    "Shadow": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "default": "#00000055",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$",
+          "title": "Color",
+          "type": "string"
+        },
+        "blur": {
+          "default": 0.025,
+          "maximum": 0.15,
+          "minimum": 0,
+          "title": "Blur",
+          "type": "number"
+        },
+        "x": {
+          "default": 0,
+          "maximum": 0.2,
+          "minimum": -0.2,
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "default": 0.012,
+          "maximum": 0.2,
+          "minimum": -0.2,
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "title": "Shadow",
+      "type": "object"
+    },
+    "SoundEffect": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "start": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "source_in": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Source In",
+          "type": "number"
+        },
+        "duration": {
+          "exclusiveMinimum": 0,
+          "maximum": 60,
+          "title": "Duration",
+          "type": "number"
+        },
+        "volume": {
+          "default": 0.3,
+          "maximum": 2,
+          "minimum": 0,
+          "title": "Volume",
+          "type": "number"
+        },
+        "fade_in": {
+          "default": 0.02,
+          "maximum": 5,
+          "minimum": 0,
+          "title": "Fade In",
+          "type": "number"
+        },
+        "fade_out": {
+          "default": 0.1,
+          "maximum": 5,
+          "minimum": 0,
+          "title": "Fade Out",
+          "type": "number"
+        }
+      },
+      "required": [
+        "source",
+        "duration"
+      ],
+      "title": "SoundEffect",
+      "type": "object"
+    },
+    "Voice": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "speaker": {
+          "default": 3,
+          "minimum": 0,
+          "title": "Speaker",
+          "type": "integer"
+        },
+        "speed": {
+          "default": 1,
+          "maximum": 2,
+          "minimum": 0.5,
+          "title": "Speed",
+          "type": "number"
+        },
+        "pitch": {
+          "default": 0,
+          "maximum": 0.15,
+          "minimum": -0.15,
+          "title": "Pitch",
+          "type": "number"
+        },
+        "volume": {
+          "default": 1,
+          "maximum": 2,
+          "minimum": 0,
+          "title": "Volume",
+          "type": "number"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "Voice",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1,
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "name": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "width": {
+      "default": 1280,
+      "maximum": 3840,
+      "minimum": 320,
+      "multipleOf": 2,
+      "title": "Width",
+      "type": "integer"
+    },
+    "height": {
+      "default": 720,
+      "maximum": 2160,
+      "minimum": 240,
+      "multipleOf": 2,
+      "title": "Height",
+      "type": "integer"
+    },
+    "fps": {
+      "default": 30,
+      "enum": [
+        24,
+        25,
+        30,
+        60
+      ],
+      "title": "Fps",
+      "type": "integer"
+    },
+    "transition_seconds": {
+      "default": 0.4,
+      "maximum": 1,
+      "minimum": 0.1,
+      "title": "Transition Seconds",
+      "type": "number"
+    },
+    "font": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Font"
+    },
+    "credits": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Credits",
+      "type": "array"
+    },
+    "music": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Music"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "scenes": {
+      "items": {
+        "$ref": "#/$defs/Scene"
+      },
+      "maxItems": 200,
+      "minItems": 1,
+      "title": "Scenes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "name",
+    "scenes"
+  ],
+  "title": "Project",
+  "type": "object"
+}

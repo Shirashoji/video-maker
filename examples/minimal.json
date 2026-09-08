@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "name": "はじめての解説動画",
+  "width": 1280,
+  "height": 720,
+  "fps": 30,
+  "credits": ["VOICEVOX:ずんだもん"],
+  "scenes": [
+    {
+      "id": "intro",
+      "title": "はじめての解説動画",
+      "voice": {"text": "こんにちは、ずんだもんなのだ。ここに解説したい内容を書くのだ。", "speaker": 3}
+    },
+    {
+      "id": "ending",
+      "duration": 3,
+      "transition": "fade",
+      "title": "ご視聴ありがとうございました",
+      "captions": [{"text": "VOICEVOX:ずんだもん", "start": 0.4, "end": 2.8}]
+    }
+  ]
+}
