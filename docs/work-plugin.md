@@ -19,7 +19,7 @@ Video Makerは、ChatGPTデスクトップ向けのローカルAgent Pluginで�
 
 > Video Makerで、素材一覧とVOICEVOXの接続状態を確認して。画面録画とずんだもんの立ち絵を使って解説動画を作りたい。
 
-`workspace_info` → `environment_status` で作業場所と接続を確認します。通常は `~/Movies/VideoMaker` にプロジェクトと素材が保存されます。`import_asset` に素材の絶対パスを渡すと原本を残して取り込みます。台本を書いて `save_project` → `render_preview` → `job_status` → `inspect_frames` → `render_final` の順で進みます。
+`workspace_info` → `environment_status` で作業場所と接続を確認します。通常は `~/Movies/VideoMaker` にプロジェクトと素材が保存されます。`import_asset` に素材の絶対パスを渡すと原本を残して取り込みます。台本を書いて `save_project` → `render_preview` → `job_status` → `inspect_frames`（気になる瞬間は `extract_frame`）→ `render_final` の順で進みます。
 
 プラグインはMCPの設定を同梱しているため、ユーザーが別途Pythonコマンドを接続設定へ手入力する必要はありません。初回だけ依存ライブラリを取得します。VOICEVOXアプリとFFmpegそのものは配布しません。
 

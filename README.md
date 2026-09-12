@@ -6,8 +6,12 @@
 
 ## できること
 
-- ローカル動画・画像・音声の取り込み、メタデータとフレーム一覧の取得、無音区間の候補抽出
-- シーンの順番変更、切り出し、0.25〜8倍速、領域クロップ、静止画の挿入
+- ローカル動画・画像・音声の取り込み、メタデータとフレーム一覧の取得、無音区間の候補抽出（取り込み前の絶対パスも検査可、フレームは時間範囲指定可）
+- 指定時刻のフレームを原寸で1枚取り出して内容を説明・確認する（`extract_frame`）。サムネイルでは読めない画面内の文字も確認でき、取り出したPNGは図解素材として再利用可
+- レンダー前に確定尺・字幕時刻・図形の表示時刻・カメラの実効注視点を返すドライラン（`plan_timeline`）
+- 完成した動画・SRT・編集JSONのワークスペース外への書き出し（`export_render`）
+- シーンの順番変更、切り出し、0.1〜20倍速、領域クロップ、静止画の挿入
+- シーン内の区間ごとの早送り・スローモーション（`speed_ramps`）。待ち時間は畳み、速い操作は引き伸ばす。元音声も追従
 - VOICEVOXの話者選択、台本から音声合成、実際の音声長に合わせた字幕
 - キャラクターPSDのレイヤー確認とPNG書き出し、立ち絵の配置、音量連動の口パク
 - 日本語テロップ・見出し、カット・ディゾルブ・ワイプ・スライド
@@ -16,9 +20,14 @@
 - グラデーション文字・背景、影付きカード・角丸画像、録画のズーム／パン、効果音の時刻指定
 - キーノート風テンプレート（minimal / colorful）、字幕の焼き込み・SRTのみ・非表示の切り替え
 - 元音声とナレーションのミックス、BGMループ・フェード・ナレーション連動の音量低下
-- 低解像度プレビュー、本番MP4、SRT、編集JSON、クレジット一覧、編集履歴
+- 低解像度プレビュー（シーン指定・解像度指定つき）、本番MP4、SRT、編集JSON、クレジット一覧、編集履歴
+- 読み方の辞書（`readings`）による合成専用の読み替え。字幕・SRTは元の表記を保持
 
 AIが素材を理解して構成を決める部分は、接続先のCodex等が担当します。レンダラー自身に意味理解や文字起こし機能はありません。APIキーを別途用意する必要はなく、既存のAIクライアントからツールを呼びます。
+
+## Claude Coworkで使う
+
+`.venv/bin/python scripts/build_plugin.py` を実行し、Claude Desktopの「カスタマイズ」→「プラグイン」から `dist/video-maker.plugin`（またはZIP）をアップロードします。VOICEVOXを起動し、新しいCoworkタスクで「Video Makerで素材一覧と接続状態を確認して」と依頼してください。[導入・接続手順](docs/cowork-plugin.md)
 
 ## ChatGPT Workで使う（Agent Plugin）
 
@@ -48,10 +57,13 @@ uv sync --extra dev
 uv run video-maker doctor
 uv run video-maker speakers
 uv run video-maker validate demo.json
+uv run video-maker plan demo.json
 uv run video-maker render demo.json --preview
+uv run video-maker render demo.json --preview --scene step-2 --width 1920
 uv run video-maker render demo.json
-uv run video-maker inspect assets/demo/screen.mp4
-uv run video-maker frames assets/demo/screen.mp4
+uv run video-maker inspect /Users/me/Movies/recording.mov
+uv run video-maker frames assets/demo/screen.mp4 --start 12 --end 18
+uv run video-maker frame assets/demo/screen.mp4 --time 14.5
 ```
 
 既定の作業場所は `workspace/`。別の場所は `video-maker --workspace /absolute/path ...` で指定します。
@@ -97,7 +109,7 @@ STDIOサーバーのコマンドは `<repository>/.venv/bin/python`、引数は�
 <repository>/workspace
 ```
 
-すべて実際の絶対パスに置き換えてください。HTTP待受ポートは作りません。主な呼び出しは `project_schema → import_asset / inspect_frames → voicevox_speakers → save_project → render_preview → job_status → render_final` です。レンダーは非同期ジョブなので、`job_status` の `complete` と結果パスを確認します。
+すべて実際の絶対パスに置き換えてください。HTTP待受ポートは作りません。主な呼び出しは `project_schema → inspect_media / import_asset → voicevox_speakers → save_project → plan_timeline → save_project（図解を追記）→ render_preview → job_status → render_final → export_render` です。レンダーは非同期ジョブなので、`job_status` の `complete` と結果パスを確認します。
 
 ## ファイルと制約
 
@@ -105,7 +117,7 @@ STDIOサーバーのコマンドは `<repository>/.venv/bin/python`、引数は�
 
 ユーザー素材・出力は `workspace/` に置き、Git管理から除外しています。元のダウンロードZIP・PSDは変更していません。キャラクターの利用条件は提供元の規約に従います。`credits` は別テキストとして出力し、表示したい場合はクレジットシーンを追加します。
 
-現段階はローカルMCP/CLI版です。GUIタイムライン、FCPXML、文字起こし、単語単位字幕、同一シーン内の複数キャラクター、HDR色管理、ジョブのキャンセルは未対応です。既存音声の `audio_text` 自動字幕は概算なので、正確な時刻が必要なら `captions` を指定します。
+現段階はローカルMCP/CLI版です。GUIタイムライン、FCPXML、文字起こし、単語単位字幕、同一シーン内の複数キャラクター、HDR色管理、ジョブのキャンセル、縦横で倍率の異なるズームは未対応です。既存音声の `audio_text` 自動字幕は概算なので、正確な時刻が必要なら `captions` を指定します。
 
 ## 参照した公式資料
 

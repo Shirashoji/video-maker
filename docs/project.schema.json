@@ -57,15 +57,31 @@
           "type": "string"
         },
         "start": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Start",
-          "type": "number"
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "pattern": "^scene_end(-\\d+(\\.\\d+)?)?$",
+              "type": "string"
+            }
+          ],
+          "default": 0.0,
+          "title": "Start"
         },
         "end": {
-          "exclusiveMinimum": 0,
-          "title": "End",
-          "type": "number"
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "pattern": "^scene_end(-\\d+(\\.\\d+)?)?$",
+              "type": "string"
+            }
+          ],
+          "title": "End"
         }
       },
       "required": [
@@ -207,16 +223,28 @@
           "default": null
         },
         "start": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Start",
-          "type": "number"
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "pattern": "^scene_end(-\\d+(\\.\\d+)?)?$",
+              "type": "string"
+            }
+          ],
+          "default": 0.0,
+          "title": "Start"
         },
         "end": {
           "anyOf": [
             {
-              "exclusiveMinimum": 0,
+              "minimum": 0,
               "type": "number"
+            },
+            {
+              "pattern": "^scene_end(-\\d+(\\.\\d+)?)?$",
+              "type": "string"
             },
             {
               "type": "null"
@@ -515,10 +543,18 @@
         },
         "speed": {
           "default": 1,
-          "maximum": 8,
-          "minimum": 0.25,
+          "maximum": 20,
+          "minimum": 0.1,
           "title": "Speed",
           "type": "number"
+        },
+        "speed_ramps": {
+          "items": {
+            "$ref": "#/$defs/SpeedRamp"
+          },
+          "maxItems": 20,
+          "title": "Speed Ramps",
+          "type": "array"
         },
         "crop": {
           "anyOf": [
@@ -821,6 +857,35 @@
       "title": "SoundEffect",
       "type": "object"
     },
+    "SpeedRamp": {
+      "additionalProperties": false,
+      "description": "Re-time one passage of the source: speed above 1 fast-forwards, below 1 is slow motion.\n\nstart/end are source seconds measured from source_in, because a ramp marks a\npassage of the recording rather than a slot in the edit; where it lands in the\nfinished scene follows from the speeds before it. plan_timeline reports both.",
+      "properties": {
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "speed": {
+          "maximum": 20,
+          "minimum": 0.1,
+          "title": "Speed",
+          "type": "number"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "speed"
+      ],
+      "title": "SpeedRamp",
+      "type": "object"
+    },
     "Voice": {
       "additionalProperties": false,
       "properties": {
@@ -931,6 +996,18 @@
       },
       "title": "Credits",
       "type": "array"
+    },
+    "readings": {
+      "additionalProperties": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxProperties": 200,
+      "propertyNames": {
+        "minLength": 1
+      },
+      "title": "Readings",
+      "type": "object"
     },
     "music": {
       "anyOf": [

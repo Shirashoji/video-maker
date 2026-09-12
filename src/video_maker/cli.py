@@ -1,13 +1,25 @@
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 from .engine import load, render, validate
-from .media import doctor, inside, probe
+from .media import doctor, probe, resolve_input
 from .service import Service
 from .voicevox import Voicevox
 from .templates import keynote_template
+
+
+def wait(service, job_id):
+    while True:
+        state = service.status(job_id)
+        if state["status"] in ("complete", "failed", "interrupted"):
+            if state["status"] != "complete":
+                raise RuntimeError(state.get("error", state["status"]))
+            return state["result"]
+        print(state.get("progress", state["status"]), file=sys.stderr, flush=True)
+        time.sleep(0.5)
 
 
 def main():
@@ -21,14 +33,23 @@ def main():
     template.add_argument("--title", default="アイデアを、動かそう。")
     template.add_argument("--subtitle", default="映像と図解で、もっと伝わる。")
     template.add_argument("--source")
-    for name in ["validate", "render"]:
+    for name in ["validate", "plan", "render"]:
         sub = commands.add_parser(name)
         sub.add_argument("project")
         if name == "render":
             sub.add_argument("--preview", action="store_true")
-    for name in ["inspect", "frames", "silence"]:
+            sub.add_argument("--width", type=int, default=640, help="preview width; never upscales")
+            sub.add_argument("--scene", action="append", dest="scenes",
+                             help="render only this scene id; repeatable")
+    for name in ["inspect", "frames", "frame", "silence"]:
         sub = commands.add_parser(name)
         sub.add_argument("path")
+        if name == "frames":
+            sub.add_argument("--start", type=float)
+            sub.add_argument("--end", type=float)
+        if name == "frame":
+            sub.add_argument("--time", type=float, required=True, help="timestamp in seconds")
+            sub.add_argument("--width", type=int, default=1280, help="never upscales")
     args = parser.parse_args()
     root = args.workspace.resolve()
     try:
@@ -44,12 +65,23 @@ def main():
             result = keynote_template(args.style, args.title, args.subtitle, args.source)
         elif args.command == "validate":
             result = validate(root, load(root, args.project))
+        elif args.command == "plan":
+            result = Service(root).plan_timeline(args.project)
         elif args.command == "render":
-            result = render(root, args.project, args.preview, lambda p: print(p, file=sys.stderr, flush=True))
+            service = Service(root)
+            if args.scenes:
+                # Reuse the job path so scene selection behaves exactly as it does over MCP.
+                job = service.start(args.project, args.preview, args.scenes, args.width)
+                result = wait(service, job["job_id"])
+            else:
+                result = render(root, args.project, args.preview,
+                                lambda p: print(p, file=sys.stderr, flush=True), args.width)
         elif args.command == "inspect":
-            result = probe(inside(root, args.path))
+            result = probe(resolve_input(root, args.path))
         elif args.command == "frames":
-            result = Service(root).contact_sheet(args.path)
+            result = Service(root).contact_sheet(args.path, start=args.start, end=args.end)
+        elif args.command == "frame":
+            result = Service(root).frame(args.path, args.time, args.width)
         else:
             result = Service(root).silence(args.path)
         print(json.dumps(result, ensure_ascii=False, indent=2))

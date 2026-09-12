@@ -34,5 +34,23 @@ def inside(root: Path, value: str, exists: bool = True) -> Path:
     return p
 
 
+def resolve_input(root: Path, value: str) -> Path:
+    """Resolve a read-only inspection path.
+
+    Accepts a workspace-relative path or an existing absolute path, so a recording
+    can be examined before import_asset copies it in. Assets referenced by a project
+    still go through inside(), keeping saved projects portable and workspace-bound.
+    """
+    candidate = Path(value).expanduser()
+    if candidate.is_absolute():
+        resolved = candidate.resolve()
+        if resolved.is_file():
+            return resolved
+        if resolved.is_dir():
+            raise ValueError(f"{value} is a directory; choose a file")
+        raise ValueError(f"File not found: {value}")
+    return inside(root, value)
+
+
 def doctor() -> dict:
     return {"ffmpeg": shutil.which("ffmpeg"), "ffprobe": shutil.which("ffprobe")}

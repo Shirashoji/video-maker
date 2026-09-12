@@ -1,12 +1,14 @@
 import argparse
+import hashlib
+import json
 from pathlib import Path
 from typing import Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.utilities.types import Image
 
-from .engine import load, validate
-from .media import doctor, inside, probe
+from .engine import load, scene_duration_for, synthesize_narration, validate
+from .media import doctor, duration as media_duration, inside, probe, resolve_input
 from .models import Project, Voice
 from .service import Service
 from .voicevox import Voicevox
@@ -54,8 +56,15 @@ def create_server(root: Path):
 
     @mcp.tool()
     def import_asset(source: str) -> dict:
-        """Copy a user-selected absolute local media/PSD/font path into workspace/assets. Never changes the original. Returns the project-relative path."""
+        """Copy a user-selected absolute local media/PSD/font path into workspace/assets. Never changes the original. Returns the project-relative path. inspect_media accepts the same absolute path, so check a recording before importing it."""
         return service.import_asset(source)
+
+    @mcp.tool()
+    def export_render(job_id: str, destination: str,
+                      items: list[Literal["video", "captions", "project", "timeline", "credits"]] | None = None,
+                      overwrite: bool = False) -> dict:
+        """Copy a completed render out of the workspace to a user-chosen folder (or a full file path for a single item). The counterpart of import_asset."""
+        return service.export(job_id, destination, tuple(items or ("video", "captions")), overwrite)
 
     @mcp.tool()
     def list_assets() -> list[str]:
@@ -75,14 +84,27 @@ def create_server(root: Path):
 
     @mcp.tool()
     def inspect_media(path: str) -> dict:
-        """Inspect duration, codecs, dimensions, frame rate and audio tracks."""
-        return probe(inside(service.root, path))
+        """Inspect duration, codecs, dimensions, frame rate and audio tracks. Accepts a workspace path or an absolute path, so a recording can be checked before import_asset copies it in."""
+        return probe(resolve_input(service.root, path))
 
     @mcp.tool()
-    def inspect_frames(path: str, count: int = 6) -> Image:
-        """Return an image contact sheet to visually inspect source media or rendered video."""
-        result = service.contact_sheet(path, count)
+    def inspect_frames(path: str, count: int = 6, start: float | None = None,
+                       end: float | None = None) -> Image:
+        """Return an image contact sheet to visually inspect source media or rendered video. Give start/end to aim at a cut, a telop entrance or one scene instead of sampling the whole file. Accepts an absolute path."""
+        result = service.contact_sheet(path, count, start, end)
         return Image(path=result["sheet"])
+
+    @mcp.tool()
+    def extract_frame(path: str, time: float, width: int = 1280):
+        """Return one frame at an exact timestamp, large enough to read on-screen text and describe what it shows.
+
+        Use this when a moment matters: what a UI displays at 12.4s, whether a telop is
+        readable, what a cut lands on. inspect_frames spreads thumbnails over a range;
+        this keeps one frame near native size. Accepts an absolute path. The PNG is saved
+        in the workspace, so a frame worth keeping can be reused as an image graphic.
+        """
+        result = service.frame(path, time, width)
+        return [Image(path=result["image"]), json.dumps(result, ensure_ascii=False)]
 
     @mcp.tool()
     def detect_silence(path: str, threshold_db: float = -35, minimum: float = 0.5) -> dict:
@@ -95,10 +117,20 @@ def create_server(root: Path):
         return Voicevox().speakers()
 
     @mcp.tool()
-    def synthesize_voice(text: str, speaker: int, speed: float = 1) -> dict:
-        """Generate a local cached WAV to audition narration."""
-        path = Voicevox().synthesize(Voice(text=text, speaker=speaker, speed=speed), service.root / ".cache" / "voicevox")
-        return {"audio": str(path)}
+    def synthesize_voice(text: str, speaker: int, speed: float = 1, readings: dict[str, str] | None = None,
+                         fps: Literal[24, 25, 30, 60] = 30, transition_seconds: float = 0.4) -> dict:
+        """Audition narration and get its measured length. Splits into caption-sized phrases exactly as a render does, so duration, per-caption times and the scene_duration a scene would take are exact, not approximations."""
+        # Keyed by the request, so repeated auditions reuse one file instead of
+        # leaving a new WAV behind on every call.
+        key = hashlib.sha256(json.dumps([text, speaker, speed, readings], sort_keys=True,
+                                        ensure_ascii=False).encode()).hexdigest()[:32]
+        audio = service.root / ".cache" / "auditions" / f"{key}.wav"
+        audio.parent.mkdir(parents=True, exist_ok=True)
+        _, _, chunks = synthesize_narration(service.root, Voice(text=text, speaker=speaker, speed=speed),
+                                            audio, readings)
+        length = media_duration(audio)
+        return {"audio": str(audio), "duration": length, "chunks": chunks,
+                "scene_duration": scene_duration_for(length, fps, transition_seconds)}
 
     @mcp.tool()
     def read_project(path: str) -> dict:
@@ -116,9 +148,14 @@ def create_server(root: Path):
         return validate(service.root, load(service.root, path))
 
     @mcp.tool()
-    def render_preview(path: str) -> dict:
-        """Queue a low-resolution full-timeline preview. Poll job_status using returned job_id."""
-        return service.start(path, preview=True)
+    def plan_timeline(path: str) -> dict:
+        """Dry run: resolve final scene durations, caption times, graphic times and camera framing without rendering. Use before writing graphics so their start/end are known to fit, and to read each scene's display_rect for camera coordinates. Also warms the narration cache."""
+        return service.plan_timeline(path)
+
+    @mcp.tool()
+    def render_preview(path: str, scenes: list[str] | None = None, width: int = 640) -> dict:
+        """Queue a downscaled preview. Poll job_status using returned job_id. Pass scenes to render only those scene ids, and a larger width (up to the project width) when on-screen text must be legible; times in a partial render restart at zero."""
+        return service.start(path, preview=True, scenes=scenes, width=width)
 
     @mcp.tool()
     def render_final(path: str) -> dict:

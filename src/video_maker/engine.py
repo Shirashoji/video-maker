@@ -15,6 +15,221 @@ from .voicevox import Voicevox
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 
 
+def apply_readings(text: str, readings: dict | None) -> str:
+    """Replace terms for synthesis only; captions and SRT keep the original spelling.
+
+    Longer terms are substituted first so a short entry cannot consume part of a
+    longer one.
+    """
+    for term in sorted(readings or {}, key=len, reverse=True):
+        text = text.replace(term, readings[term])
+    return text
+
+
+def resolve_time(value, length: float, default=None):
+    """Turn a scene-relative time into seconds from the scene start."""
+    if value is None:
+        return default
+    if isinstance(value, str):
+        offset = value[len("scene_end"):]
+        return length - float(offset[1:]) if offset else length
+    return float(value)
+
+
+def resolved_graphics(scene, length: float) -> list:
+    """Graphics with scene-relative start/end replaced by seconds."""
+    return [g.model_copy(update={"start": resolve_time(g.start, length),
+                                 "end": resolve_time(g.end, length, length)})
+            for g in scene.graphics]
+
+
+# Source seconds elapsed at the frame setpts is looking at, written defensively so a
+# non-zero container start time cannot shift the retiming.
+SOURCE_SECONDS = "(PTS-STARTPTS)*TB"
+
+
+def speed_segments(scene) -> list[tuple[float, float | None, float]]:
+    """(start, end, speed) spans in source seconds from source_in, covering the source.
+
+    scene.speed plays everywhere a ramp does not; the final span is open-ended because
+    how much source a scene consumes is only known once its duration is resolved.
+    """
+    segments, cursor = [], 0.0
+    for ramp in scene.speed_ramps:
+        if ramp.start > cursor:
+            segments.append((cursor, ramp.start, scene.speed))
+        segments.append((ramp.start, ramp.end, ramp.speed))
+        cursor = ramp.end
+    segments.append((cursor, None, scene.speed))
+    return segments
+
+
+def retime_filter(scene) -> str:
+    """setpts mapping source seconds to output seconds across the scene's speed spans.
+
+    The map is a sum of clamped ramps rather than nested conditionals: each frame is
+    remapped on its own, so FFmpeg keeps streaming instead of buffering the whole
+    source the way a split/trim/concat graph would.
+    """
+    if not scene.speed_ramps:
+        return f"setpts=(PTS-STARTPTS)/{scene.speed}"
+    terms = []
+    for start, end, speed in speed_segments(scene):
+        # An open-ended final span still needs a finite clamp; no source runs this long.
+        span = 1e7 if end is None else end - start
+        terms.append(f"{1/speed:.12g}*clip({SOURCE_SECONDS}-{start:.6f},0,{span:.6f})")
+    # Quoted: the clamp terms contain commas, which otherwise end the filter argument.
+    return f"setpts='({'+'.join(terms)})/TB'"
+
+
+def atempo_chain(speed: float) -> list[str]:
+    """atempo stages for one playback rate; a single stage only spans 0.5x..2x."""
+    stages, remaining = [], speed
+    while remaining < 0.5:
+        stages.append("atempo=0.5")
+        remaining /= 0.5
+    while remaining > 2:
+        stages.append("atempo=2")
+        remaining /= 2
+    stages.append(f"atempo={remaining}")
+    return stages
+
+
+def source_span(scene, length: float) -> float:
+    """Source seconds a scene of this output length consumes, speed ramps included."""
+    remaining = length
+    for start, end, speed in speed_segments(scene):
+        if end is None:
+            return start + remaining * speed
+        output_length = (end - start) / speed
+        if output_length >= remaining:
+            return start + remaining * speed
+        remaining -= output_length
+    raise AssertionError("speed_segments always ends open-ended")
+
+
+def retiming(scene, length: float) -> dict:
+    """Where each speed span lands in the finished scene, so telops can be timed to it."""
+    spans, cursor, consumed = [], 0.0, source_span(scene, length)
+    for start, end, speed in speed_segments(scene):
+        if start >= consumed:
+            break
+        stop = consumed if end is None else min(end, consumed)
+        spans.append({"source_start": start, "source_end": stop, "speed": speed,
+                      "output_start": cursor, "output_end": cursor + (stop - start) / speed})
+        cursor += (stop - start) / speed
+    return {"source_in": scene.source_in, "source_consumed": consumed, "spans": spans,
+            "note": ("source_start/source_end are seconds after source_in; output_start/"
+                     "output_end are scene seconds. Captions, graphics and camera use "
+                     "output seconds.")}
+
+
+def retime_audio(source: Path, scene, length: float, output: Path) -> Path:
+    """Render the scene's source audio once per speed span, then join the spans.
+
+    One short pass per span keeps memory flat; an asplit/atrim/concat graph would have
+    to hold the whole track in memory while its first branch drains.
+    """
+    consumed = source_span(scene, length)
+    parts = []
+    for index, (start, end, speed) in enumerate(speed_segments(scene)):
+        if start >= consumed:
+            break
+        stop = consumed if end is None else min(end, consumed)
+        part = output.with_name(f"{output.stem}-{index}.wav")
+        ffmpeg(["-ss", str(scene.source_in + start), "-t", str(stop - start), "-i", str(source),
+                "-vn", "-af", ",".join(atempo_chain(speed)), "-ar", "48000", "-ac", "1",
+                "-c:a", "pcm_s16le", str(part)])
+        parts.append(part)
+    with wave.open(str(output), "wb") as combined:
+        combined.setnchannels(1)
+        combined.setsampwidth(2)
+        combined.setframerate(48000)
+        for part in parts:
+            with wave.open(str(part)) as span:
+                combined.writeframes(span.readframes(span.getnframes()))
+    return output
+
+
+def synthesize_narration(root: Path, voice, output: Path, readings: dict | None = None):
+    """Synthesize one caption-sized phrase at a time and concatenate them.
+
+    Caption boundaries follow measured WAV lengths. prepare() and the synthesize_voice
+    tool share this, so auditioned timings match what the render produces.
+    """
+    elapsed, chunks = 0.0, []
+    with wave.open(str(output), "wb") as combined:
+        combined.setnchannels(1)
+        combined.setsampwidth(2)
+        combined.setframerate(48000)
+        for part in subtitle_chunks(voice.text, 0, 1):
+            spoken = apply_readings(part["text"], readings)
+            fragment = Voicevox().synthesize(voice.model_copy(update={"text": spoken}),
+                                             root / ".cache" / "voicevox")
+            with wave.open(str(fragment)) as source:
+                if (source.getnchannels(), source.getsampwidth(), source.getframerate()) != (1, 2, 48000):
+                    raise ValueError("VOICEVOX must return mono 16-bit 48 kHz WAV")
+                part_length = source.getnframes() / source.getframerate()
+                combined.writeframes(source.readframes(source.getnframes()))
+            chunks.append({"text": part["text"], "spoken": spoken,
+                           "start": elapsed, "end": elapsed + part_length})
+            elapsed += part_length
+    return output, elapsed, chunks
+
+
+def scene_duration_for(audio_length: float, fps: int, transition_seconds: float) -> float:
+    """Scene length prepare() would choose for narration of this length."""
+    overlap = round(transition_seconds * fps) / fps
+    return math.ceil((overlap + 0.1 + audio_length + overlap + 0.1) * fps) / fps
+
+
+def scene_layout(root: Path, project: Project, scene) -> dict | None:
+    """Where the recording actually lands, so camera coordinates need no mental math.
+
+    graphics use output-canvas fractions; camera x,y are fractions of the recording's
+    display area (the source_rect box, letterbox bars included). content_rect_in_camera
+    is that display area minus the bars, i.e. where the picture itself is in camera space.
+    """
+    if not scene.source:
+        return None
+    w, h = project.width, project.height
+    meta = probe(inside(root, scene.source))
+    stream = next((s for s in meta["streams"] if s["codec_type"] == "video"), None)
+    if not stream:
+        return None
+    sw, sh = float(stream["width"]), float(stream["height"])
+    if scene.crop:
+        sw, sh = sw * scene.crop[2], sh * scene.crop[3]
+    rx, ry, rw, rh = scene.source_rect or (0, 0, 1, 1)
+    vw, vh = max(2, int(w * rw) // 2 * 2), max(2, int(h * rh) // 2 * 2)
+    fit = min(vw / sw, vh / sh)
+    cw, ch = sw * fit, sh * fit
+    ox, oy = (vw - cw) / 2, (vh - ch) / 2
+    return {
+        "source_size": [float(stream["width"]), float(stream["height"])],
+        "cropped_size": [sw, sh],
+        "display_rect": [rx, ry, vw / w, vh / h],
+        "content_rect": [rx + ox / w, ry + oy / h, cw / w, ch / h],
+        "content_rect_in_camera": [ox / vw, oy / vh, cw / vw, ch / vh],
+        "note": ("graphics x,y are output-canvas fractions; camera x,y are fractions of "
+                 "display_rect. camera_x = (output_x - display_rect[0]) / display_rect[2]."),
+    }
+
+
+def camera_focus(keys) -> list[dict]:
+    """Effective focus after edge clamping, so a requested x,y is not guesswork."""
+    result = []
+    for key in keys:
+        span = 1 / key.zoom
+        left = max(0.0, min(1 - span, key.x - span / 2))
+        top = max(0.0, min(1 - span, key.y - span / 2))
+        result.append({"time": key.time, "zoom": key.zoom, "x": key.x, "y": key.y,
+                       "easing": key.easing,
+                       "effective_x": left + span / 2, "effective_y": top + span / 2,
+                       "visible_rect_in_camera": [left, top, span, span]})
+    return result
+
+
 def load(root: Path, project: str) -> Project:
     return Project.model_validate_json(inside(root, project).read_text())
 
@@ -42,8 +257,19 @@ def validate(root: Path, project: Project) -> dict:
             meta = probe(inside(root, scene.source))
             if not any(s["codec_type"] == "video" for s in meta["streams"]):
                 raise ValueError(f"{scene.id}: source must contain video")
-            if scene.source_in >= float(meta["format"]["duration"]):
+            length = float(meta["format"]["duration"])
+            if scene.source_in >= length:
                 raise ValueError(f"{scene.id}: source_in exceeds source duration")
+            available = length - scene.source_in
+            for ramp in scene.speed_ramps:
+                if ramp.start >= available:
+                    raise ValueError(f"{scene.id}: speed ramp starts {ramp.start}s after source_in, "
+                                     f"past the {available:.2f}s of source that remains")
+                if ramp.end > available:
+                    warnings.append(f"{scene.id}: speed ramp ends past the source; the last frame "
+                                    "holds there instead of playing at that speed.")
+        elif scene.speed_ramps:
+            raise ValueError(f"{scene.id}: speed_ramps needs a video source; a still has no motion to re-time")
         if scene.voice and not project.credits:
             warnings.append("Add the selected VOICEVOX character credit to project.credits before publishing.")
     if project.music:
@@ -52,32 +278,29 @@ def validate(root: Path, project: Project) -> dict:
     return {"valid": True, "scenes": len(project.scenes), "warnings": sorted(set(warnings))}
 
 
-def prepare(root: Path, project: Project, build: Path) -> list[dict]:
-    """Resolve actual audio durations before choosing frame-exact scene lengths."""
+def plan(root: Path, project: Project, build: Path, strict: bool = True):
+    """Resolve actual audio durations before choosing frame-exact scene lengths.
+
+    With strict=False problems are collected instead of raised, so a dry run can
+    report every issue at once together with the durations graphics must fit inside.
+    """
     validate(root, project)
-    resolved, cursor = [], 0.0
+    resolved, issues, cursor = [], [], 0.0
     fps = project.fps
     overlap = round(project.transition_seconds * fps) / fps
     for index, scene in enumerate(project.scenes):
+        problems = []
+
+        def fail(message):
+            if strict:
+                raise ValueError(message)
+            problems.append(message)
+
         audio = None
         voice_captions = []
         if scene.voice:
             audio = build / f"{scene.id}-speech.wav"
-            elapsed = 0.0
-            with wave.open(str(audio), "wb") as combined:
-                combined.setnchannels(1)
-                combined.setsampwidth(2)
-                combined.setframerate(48000)
-                for part in subtitle_chunks(scene.voice.text, 0, 1):
-                    fragment = Voicevox().synthesize(scene.voice.model_copy(update={"text": part["text"]}),
-                                                    root / ".cache" / "voicevox")
-                    with wave.open(str(fragment)) as source:
-                        if (source.getnchannels(), source.getsampwidth(), source.getframerate()) != (1, 2, 48000):
-                            raise ValueError("VOICEVOX must return mono 16-bit 48 kHz WAV")
-                        part_length = source.getnframes() / source.getframerate()
-                        combined.writeframes(source.readframes(source.getnframes()))
-                    voice_captions.append({"text": part["text"], "start": elapsed, "end": elapsed + part_length})
-                    elapsed += part_length
+            _, _, voice_captions = synthesize_narration(root, scene.voice, audio, project.readings)
         elif scene.audio:
             audio = inside(root, scene.audio)
         head = overlap + 0.1
@@ -90,37 +313,62 @@ def prepare(root: Path, project: Project, build: Path) -> list[dict]:
         required = head + audio_length + overlap + 0.1 if audio else 0.5
         length = math.ceil((scene.duration if scene.duration is not None else required) * fps) / fps
         if length + 1e-6 < required:
-            raise ValueError(f"{scene.id}: duration {length:.2f}s is too short; narration needs {required:.2f}s")
+            fail(f"{scene.id}: duration {length:.2f}s is too short; narration needs {required:.2f}s")
         if scene.transition != "cut" and min(length, resolved[-1]["duration"]) <= 2 * overlap:
-            raise ValueError(f"{scene.id}: scenes must be longer than twice the transition duration")
+            fail(f"{scene.id}: scenes must be longer than twice the transition duration")
         if scene.transition != "cut":
             cursor -= overlap
-        captions = [c.model_dump() for c in scene.captions]
+        captions = []
+        for caption in scene.captions:
+            entry = caption.model_dump()
+            entry["start"] = resolve_time(caption.start, length)
+            entry["end"] = resolve_time(caption.end, length)
+            if entry["end"] <= entry["start"]:
+                fail(f"{scene.id}: caption end must be after start")
+            captions.append(entry)
         if not captions and audio:
             if scene.voice:
-                captions = [{**c, "start": c["start"] + head, "end": c["end"] + head} for c in voice_captions]
+                captions = [{"text": c["text"], "start": c["start"] + head, "end": c["end"] + head}
+                            for c in voice_captions]
             elif scene.audio_text:
                 captions = subtitle_chunks(scene.audio_text, head, audio_length)
         for caption in captions:
             if caption["end"] > length:
-                raise ValueError(f"{scene.id}: caption extends past scene end")
-        for graphic in scene.graphics:
-            end = graphic.end if graphic.end is not None else length
-            if graphic.start >= length or end > length or (graphic.keyframes and
-                    graphic.keyframes[-1].time > end - graphic.start):
-                raise ValueError(f"{scene.id}: graphic or keyframe extends past scene end")
+                fail(f"{scene.id}: caption extends past scene end")
+        graphics = []
+        for position, graphic in enumerate(resolved_graphics(scene, length)):
+            if graphic.end <= graphic.start:
+                fail(f"{scene.id}: graphic end must be after start")
+            elif graphic.start >= length or graphic.end > length or (graphic.keyframes and
+                    graphic.keyframes[-1].time > graphic.end - graphic.start):
+                fail(f"{scene.id}: graphic or keyframe extends past scene end")
+            graphics.append({"index": position, "kind": graphic.kind,
+                             "start": graphic.start, "end": graphic.end})
+        # A still has no timeline to re-time, so speed never applies to one.
+        retimed_source = (bool(scene.source) and Path(scene.source).suffix.lower() not in IMAGE_EXT
+                          and (scene.speed != 1 or bool(scene.speed_ramps)))
         if scene.camera and scene.camera[-1].time > length:
-            raise ValueError(f"{scene.id}: camera extends past scene end")
+            fail(f"{scene.id}: camera extends past scene end")
         for effect in scene.sound_effects:
             if effect.start + effect.duration > length + 1e-6:
-                raise ValueError(f"{scene.id}: sound effect extends past scene end")
+                fail(f"{scene.id}: sound effect extends past scene end")
         if scene.caption_mode == "off":
             captions = []
         resolved.append({"id": scene.id, "start": cursor, "duration": length,
                          "audio": str(audio) if audio else None, "audio_start": head,
-                         "audio_duration": audio_length, "captions": captions})
+                         "audio_duration": audio_length, "captions": captions,
+                         "required_duration": required, "graphics": graphics,
+                         "camera": camera_focus(scene.camera),
+                         "retiming": retiming(scene, length) if retimed_source else None,
+                         "layout": scene_layout(root, project, scene), "issues": problems})
+        issues.extend(problems)
         cursor += length
-    return resolved
+    return resolved, issues
+
+
+def prepare(root: Path, project: Project, build: Path) -> list[dict]:
+    """Resolve actual audio durations before choosing frame-exact scene lengths."""
+    return plan(root, project, build, strict=True)[0]
 
 
 def render_scene(root, project, scene, info, build, font):
@@ -140,7 +388,7 @@ def render_scene(root, project, scene, info, build, font):
         args += ["-loop", "1", "-framerate", str(fps), "-i", str(backdrop)]
     else:
         args += ["-f", "lavfi", "-i", f"color=c={scene.background}:s={w}x{h}:r={fps}:d={length}"]
-    base = f"[0:v]setpts=(PTS-STARTPTS)/{scene.speed},"
+    base = f"[0:v]{retime_filter(scene)},"
     if scene.crop:
         x, y, cw, ch = scene.crop
         base += f"crop=iw*{cw}:ih*{ch}:iw*{x}:ih*{y},"
@@ -174,7 +422,7 @@ def render_scene(root, project, scene, info, build, font):
 
     if scene.graphics:
         motion = build / f"{scene.id}-graphics.mov"
-        render_graphics(scene.graphics, w, h, fps, length, font, motion, root)
+        render_graphics(resolved_graphics(scene, length), w, h, fps, length, font, motion, root)
         args.extend(["-i", str(motion)])
         count += 1
         target = f"v{count}"
@@ -218,17 +466,18 @@ def render_scene(root, project, scene, info, build, font):
     source_has_audio = (scene.source and Path(scene.source).suffix.lower() not in IMAGE_EXT
                         and any(s["codec_type"] == "audio" for s in probe(inside(root, scene.source))["streams"]))
     if source_has_audio and scene.source_volume:
-        speed = scene.speed
-        tempos = []
-        while speed < 0.5:
-            tempos.append("atempo=0.5")
-            speed /= 0.5
-        while speed > 2:
-            tempos.append("atempo=2")
-            speed /= 2
-        tempos.append(f"atempo={speed}")
-        filters.append(f"[0:a]asetpts=PTS-STARTPTS,{','.join(tempos)},volume={scene.source_volume},"
-                       f"apad,atrim=duration={length},aresample=48000[srcaudio]")
+        if scene.speed_ramps:
+            # Each span is resampled in its own pass; feed the joined result back in.
+            retimed = retime_audio(inside(root, scene.source), scene, length,
+                                   build / f"{scene.id}-retimed.wav")
+            args += ["-i", str(retimed)]
+            filters.append(f"[{idx}:a]asetpts=PTS-STARTPTS,volume={scene.source_volume},"
+                           f"apad,atrim=duration={length},aresample=48000[srcaudio]")
+            idx += 1
+        else:
+            filters.append(f"[0:a]asetpts=PTS-STARTPTS,{','.join(atempo_chain(scene.speed))},"
+                           f"volume={scene.source_volume},apad,atrim=duration={length},"
+                           "aresample=48000[srcaudio]")
         filters.append("[narr]asplit=2[narrout][narrmix]")
         filters.append("[srcaudio][narrmix]amix=inputs=2:normalize=0:duration=longest,alimiter=limit=0.95:latency=1[mix]")
     else:
@@ -298,12 +547,15 @@ def srt_time(value):
     return f"{ms//3600000:02}:{ms//60000%60:02}:{ms//1000%60:02},{ms%1000:03}"
 
 
-def render(root: Path, project_path: str, preview=False, progress=lambda _: None) -> dict:
+def render(root: Path, project_path: str, preview=False, progress=lambda _: None,
+           preview_width: int = 640) -> dict:
     root = root.resolve()
     project = load(root, project_path)
     original = project.model_dump(mode="json")
     if preview:
-        ratio = min(1, 640 / project.width)
+        # Never upscale; a larger preview_width is how a single scene gets checked
+        # at a resolution where on-screen text is actually legible.
+        ratio = min(1, preview_width / project.width)
         project.width = int(project.width * ratio) // 2 * 2
         project.height = int(project.height * ratio) // 2 * 2
     build = root / "renders" / uuid.uuid4().hex
@@ -349,6 +601,7 @@ def render(root: Path, project_path: str, preview=False, progress=lambda _: None
         if abs(expected - actual) > max(0.15, 2 / project.fps):
             raise RuntimeError(f"Duration mismatch: expected {expected}, got {actual}")
         result = {"video": str(output), "duration": actual, "preview": preview,
+                  "width": project.width, "height": project.height,
                   "project": str(build / "project.json"), "timeline": str(build / "timeline.json"),
                   "captions": str(build / "captions.srt"), "credits": str(build / "credits.txt")}
         (build / "result.json").write_text(json.dumps(result, indent=2))

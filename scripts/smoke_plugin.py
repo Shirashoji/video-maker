@@ -3,6 +3,7 @@ import argparse
 import asyncio
 import json
 import os
+import tempfile
 from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
@@ -27,9 +28,18 @@ async def check(plugin: Path, workspace: Path):
                 'path': 'smoke.json', 'overwrite': True,
                 'project': {'name': 'Packaged smoke test', 'width': 320, 'height': 240,
                             'scenes': [{'id': 'scene', 'duration': 1,
-                                        'captions': [{'text': '接続テスト', 'start': 0.1, 'end': 0.9}]}]}})
+                                        'graphics': [{'kind': 'rect', 'end': 'scene_end-0.2'}],
+                                        'captions': [{'text': '接続テスト', 'start': 0.1,
+                                                      'end': 'scene_end-0.1'}]}]}})
             assert not saved.isError, saved
-            job = await client.call_tool('render_preview', {'path': 'smoke.json'})
+            # The dry run must settle durations before anything is rendered.
+            planned = await client.call_tool('plan_timeline', {'path': 'smoke.json'})
+            assert not planned.isError, planned
+            timeline = json.loads(planned.content[0].text)
+            assert timeline['issues'] == [], timeline
+            assert timeline['scenes'][0]['graphics'][0]['end'] == 0.8, timeline
+            assert timeline['scenes'][0]['captions'][0]['end'] == 0.9, timeline
+            job = await client.call_tool('render_preview', {'path': 'smoke.json', 'scenes': ['scene']})
             assert not job.isError, job
             job_id = json.loads(job.content[0].text)['job_id']
             for _ in range(300):
@@ -40,8 +50,18 @@ async def check(plugin: Path, workspace: Path):
                 await asyncio.sleep(0.2)
             assert state['status'] == 'complete', state
             # Exercise the visual MCP response as well as structured tool results.
-            frames = await client.call_tool('inspect_frames', {'path': state['result']['video'], 'count': 3})
+            frames = await client.call_tool('inspect_frames', {'path': state['result']['video'],
+                                                              'count': 3, 'start': 0.2, 'end': 0.8})
             assert not frames.isError and any(x.type == 'image' for x in frames.content), frames
+            one = await client.call_tool('extract_frame', {'path': state['result']['video'],
+                                                           'time': 0.5})
+            assert not one.isError and any(x.type == 'image' for x in one.content), one
+            with tempfile.TemporaryDirectory(prefix='video-maker-export-') as outbox:
+                exported = await client.call_tool('export_render', {'job_id': job_id,
+                                                                    'destination': outbox})
+                assert not exported.isError, exported
+                delivered = json.loads(exported.content[0].text)['exported']
+                assert Path(delivered['video']).is_file(), delivered
             print(json.dumps(state, ensure_ascii=False, indent=2))
 
 

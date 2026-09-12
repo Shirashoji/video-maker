@@ -1,0 +1,9 @@
+{
+  "name": "video-maker",
+  "version": "0.1.0",
+  "description": "録画素材をVOICEVOX・立ち絵・字幕で解説動画に編集するローカルツール。",
+  "author": {"name": "takuma"},
+  "keywords": ["video-editing", "voicevox", "captions", "psd"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}

@@ -22,14 +22,22 @@ class Character(Model):
     height: float = Field(default=0.62, ge=0.1, le=0.9)
 
 
+# Scene-relative times. "scene_end" is the resolved scene length, "scene_end-0.5"
+# half a second before it. They let graphics and captions be written before
+# narration fixes the scene duration; plan_timeline reports the resolved numbers.
+SceneRelative = Annotated[str, Field(pattern=r"^scene_end(-\d+(\.\d+)?)?$")]
+TimeExpr = Annotated[float, Field(ge=0)] | SceneRelative
+
+
 class Caption(Model):
     text: str = Field(min_length=1, max_length=500)
-    start: float = Field(default=0, ge=0)
-    end: float = Field(gt=0)
+    start: TimeExpr = 0.0
+    end: TimeExpr
 
     @model_validator(mode="after")
     def ordered(self):
-        if self.end <= self.start:
+        # Relative times are checked once the scene length is known.
+        if not isinstance(self.start, str) and not isinstance(self.end, str) and self.end <= self.start:
             raise ValueError("caption end must be after start")
         return self
 
@@ -90,8 +98,8 @@ class Graphic(Model):
     fit: Literal["contain", "cover"] = "contain"
     gradient: Gradient | None = None
     shadow: Shadow | None = None
-    start: float = Field(default=0, ge=0)
-    end: float | None = Field(default=None, gt=0)
+    start: TimeExpr = 0.0
+    end: TimeExpr | None = None
     x: float = Field(default=0.1, ge=-2, le=2)
     y: float = Field(default=0.1, ge=-2, le=2)
     width: float = Field(default=0.8, gt=0, le=2)
@@ -116,7 +124,9 @@ class Graphic(Model):
 
     @model_validator(mode="after")
     def valid_graphic(self):
-        if self.end is not None and self.end <= self.start:
+        # Relative times are checked once the scene length is known.
+        fixed = not isinstance(self.start, str) and isinstance(self.end, (int, float))
+        if fixed and self.end <= self.start:
             raise ValueError("graphic end must be after start")
         if self.kind == "text" and not self.text:
             raise ValueError("text graphic requires text")
@@ -129,8 +139,26 @@ class Graphic(Model):
         times = [k.time for k in self.keyframes]
         if times != sorted(set(times)):
             raise ValueError("keyframe times must be strictly increasing")
-        if self.end is not None and times and times[-1] > self.end - self.start:
+        if fixed and times and times[-1] > self.end - self.start:
             raise ValueError("keyframe extends past graphic end")
+        return self
+
+
+class SpeedRamp(Model):
+    """Re-time one passage of the source: speed above 1 fast-forwards, below 1 is slow motion.
+
+    start/end are source seconds measured from source_in, because a ramp marks a
+    passage of the recording rather than a slot in the edit; where it lands in the
+    finished scene follows from the speeds before it. plan_timeline reports both.
+    """
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+    speed: float = Field(ge=0.1, le=20)
+
+    @model_validator(mode="after")
+    def ordered(self):
+        if self.end <= self.start:
+            raise ValueError("speed ramp end must be after start")
         return self
 
 
@@ -138,7 +166,9 @@ class Scene(Model):
     id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,64}$")
     source: str | None = None
     source_in: float = Field(default=0, ge=0)
-    speed: float = Field(default=1, ge=0.25, le=8)
+    # Base playback rate for the whole source; speed_ramps override it in their range.
+    speed: float = Field(default=1, ge=0.1, le=20)
+    speed_ramps: list[SpeedRamp] = Field(default_factory=list, max_length=20)
     # x/y/width/height in normalized source coordinates
     crop: tuple[float, float, float, float] | None = None
     duration: float | None = Field(default=None, ge=0.5, le=3600)
@@ -174,6 +204,12 @@ class Scene(Model):
             if not self.source or not (0 <= x < 1 and 0 <= y < 1 and 0 < w <= 1
                                       and 0 < h <= 1 and x + w <= 1 and y + h <= 1):
                 raise ValueError("source_rect requires a source and must fit within output bounds")
+        if self.speed_ramps:
+            if not self.source:
+                raise ValueError("speed_ramps requires source")
+            edges = [t for ramp in self.speed_ramps for t in (ramp.start, ramp.end)]
+            if edges != sorted(edges) or len(set(edges)) != len(edges):
+                raise ValueError("speed ramps must be ordered and must not overlap")
         if self.camera:
             if not self.source:
                 raise ValueError("camera requires source")
@@ -198,6 +234,9 @@ class Project(Model):
     transition_seconds: float = Field(default=0.4, ge=0.1, le=1)
     font: str | None = None
     credits: list[str] = Field(default_factory=list)
+    # Synthesis-only pronunciations. Captions and SRT keep the original spelling.
+    readings: dict[Annotated[str, Field(min_length=1)], Annotated[str, Field(min_length=1)]] = Field(
+        default_factory=dict, max_length=200)
     music: Music | None = None
     scenes: list[Scene] = Field(min_length=1, max_length=200)
 
