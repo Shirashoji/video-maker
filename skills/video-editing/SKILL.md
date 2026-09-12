@@ -47,7 +47,7 @@ Do not convert between them by hand. `plan_timeline` returns each scene's `layou
 - Transitions overlap scene ends. The engine adds quiet handles around narration so narration from adjacent scenes does not overlap. Do not shorten a scene below the required voice length; the renderer rejects truncation.
 - Mouth-open/closed switching follows audio energy, not phoneme-specific visemes. It requires two full transparent sprites; a single PNG remains static.
 - `source_volume` defaults to zero. Enable it intentionally; it is mixed with narration. BGM may duck against a separate narration stem.
-- No transcription, video generation, automatic semantic cut selection inside the engine, FCPXML round-trip, or Final Cut Pro UI automation is implemented. MP4 can be opened in a video editor, while editable layers remain in JSON.
+- No transcription, video generation, automatic semantic cut selection inside the engine, FCPXML round-trip, or external video editor UI automation is implemented. MP4 can be opened in a video editor, while editable layers remain in JSON.
 - All rendering is local. VOICEVOX must be running at `http://127.0.0.1:50021` unless `VOICEVOX_URL` is configured. Render jobs are serial, retain artifacts, and are marked interrupted after server restart; resubmit to continue.
 
 ## Telop color and readability
