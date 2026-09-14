@@ -245,8 +245,14 @@ def validate(root: Path, project: Project) -> dict:
         for graphic in scene.graphics:
             if graphic.source:
                 path = inside(root, graphic.source)
-                if path.suffix.lower() not in IMAGE_EXT:
+                if graphic.kind == "image" and path.suffix.lower() not in (IMAGE_EXT | {".svg", ".svgz"}):
                     raise ValueError(f"{scene.id}: image graphic requires a supported still image")
+                elif graphic.kind == "html" and path.suffix.lower() not in {".html", ".htm"}:
+                    raise ValueError(f"{scene.id}: html graphic source must be .html or .htm")
+                elif graphic.kind == "mermaid" and path.suffix.lower() not in {".mmd", ".mermaid"}:
+                    raise ValueError(f"{scene.id}: mermaid graphic source must be .mmd or .mermaid")
+                elif graphic.kind == "svg" and path.suffix.lower() not in {".svg", ".svgz"}:
+                    raise ValueError(f"{scene.id}: svg graphic source must be .svg or .svgz")
         for effect in scene.sound_effects:
             meta = probe(inside(root, effect.source))
             if not any(s["codec_type"] == "audio" for s in meta["streams"]):

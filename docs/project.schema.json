@@ -174,7 +174,10 @@
             "ellipse",
             "arrow",
             "line",
-            "image"
+            "image",
+            "html",
+            "mermaid",
+            "svg"
           ],
           "title": "Kind",
           "type": "string"
@@ -190,6 +193,56 @@
           ],
           "default": null,
           "title": "Source"
+        },
+        "html": {
+          "anyOf": [
+            {
+              "maxLength": 50000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Html"
+        },
+        "mermaid": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mermaid"
+        },
+        "theme": {
+          "default": "dark",
+          "enum": [
+            "default",
+            "dark",
+            "forest",
+            "neutral"
+          ],
+          "title": "Theme",
+          "type": "string"
+        },
+        "svg": {
+          "anyOf": [
+            {
+              "maxLength": 50000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Svg"
         },
         "fit": {
           "default": "contain",

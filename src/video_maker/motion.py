@@ -9,6 +9,7 @@ from PIL import Image, ImageChops, ImageColor, ImageDraw, ImageFilter, ImageFont
 from .graphics import wrap
 from .models import Graphic
 from .media import inside
+from .web_render import render_html_to_image, render_mermaid_to_image, render_svg_to_image
 
 
 def gradient_image(spec, size):
@@ -113,19 +114,34 @@ def artwork(g: Graphic, width: int, height: int, font: str, root: Path | None = 
     im = Image.new("RGBA", (w + pad * 2, h + pad * 2))
     draw = ImageDraw.Draw(im)
     box = (pad, pad, pad + w - 1, pad + h - 1)
-    if g.kind == "image":
-        if root is None:
-            raise ValueError("Image graphics require a workspace")
-        with Image.open(inside(root, g.source)) as raw:
-            source = ImageOps.exif_transpose(raw).convert("RGBA")
-            if g.fit == "cover":
-                source = ImageOps.fit(source, (w, h), method=Image.Resampling.LANCZOS)
+    if g.kind in ("image", "html", "mermaid", "svg"):
+        if g.source and root is None:
+            raise ValueError(f"{g.kind.capitalize()} graphics with source require a workspace")
+        if g.kind == "html":
+            src = inside(root, g.source) if g.source else g.html
+            source = render_html_to_image(str(src), width=w, height=h, root=root)
+        elif g.kind == "mermaid":
+            src = inside(root, g.source) if g.source else g.mermaid
+            source = render_mermaid_to_image(str(src), width=w, height=h, theme=g.theme, root=root)
+        elif g.kind == "svg":
+            src = inside(root, g.source) if g.source else g.svg
+            source = render_svg_to_image(str(src), width=w, height=h, root=root)
+        else:
+            src_path = inside(root, g.source)
+            if str(src_path).lower().endswith((".svg", ".svgz")):
+                source = render_svg_to_image(str(src_path), width=w, height=h, root=root)
             else:
-                source = ImageOps.contain(source, (w, h), method=Image.Resampling.LANCZOS)
-            tile = Image.new("RGBA", (w, h))
-            tile.alpha_composite(source, ((w-source.width)//2, (h-source.height)//2))
+                with Image.open(src_path) as raw:
+                    source = ImageOps.exif_transpose(raw).convert("RGBA")
+
+        if g.fit == "cover":
+            source = ImageOps.fit(source, (w, h), method=Image.Resampling.LANCZOS)
+        else:
+            source = ImageOps.contain(source, (w, h), method=Image.Resampling.LANCZOS)
+        tile = Image.new("RGBA", (w, h))
+        tile.alpha_composite(source, ((w - source.width) // 2, (h - source.height) // 2))
         mask = Image.new("L", (w, h))
-        ImageDraw.Draw(mask).rounded_rectangle((0,0,w-1,h-1), radius=min(g.radius*height,w/2,h/2), fill=255)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, w - 1, h - 1), radius=min(g.radius * height, w / 2, h / 2), fill=255)
         tile.putalpha(ImageChops.multiply(tile.getchannel("A"), mask))
         im.alpha_composite(tile, (pad, pad))
     elif g.kind in ("rect", "ellipse"):

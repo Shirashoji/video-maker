@@ -93,8 +93,12 @@ class Keyframe(Model):
 
 class Graphic(Model):
     """Declarative, editable graphics. Coordinates are fractions of the output canvas."""
-    kind: Literal["text", "rect", "ellipse", "arrow", "line", "image"]
+    kind: Literal["text", "rect", "ellipse", "arrow", "line", "image", "html", "mermaid", "svg"]
     source: str | None = None
+    html: str | None = Field(default=None, max_length=50000)
+    mermaid: str | None = Field(default=None, max_length=10000)
+    theme: Literal["default", "dark", "forest", "neutral"] = "dark"
+    svg: str | None = Field(default=None, max_length=50000)
     fit: Literal["contain", "cover"] = "contain"
     gradient: Gradient | None = None
     shadow: Shadow | None = None
@@ -130,8 +134,16 @@ class Graphic(Model):
             raise ValueError("graphic end must be after start")
         if self.kind == "text" and not self.text:
             raise ValueError("text graphic requires text")
-        if (self.kind == "image") != (self.source is not None):
-            raise ValueError("source is required only for image graphics")
+        if self.source is not None and self.kind not in ("image", "html", "mermaid", "svg"):
+            raise ValueError(f"source is not allowed for {self.kind} graphics")
+        if self.kind == "image" and not self.source:
+            raise ValueError("image graphic requires source")
+        if self.kind == "html" and not (self.source or self.html):
+            raise ValueError("html graphic requires source or html")
+        if self.kind == "mermaid" and not (self.source or self.mermaid):
+            raise ValueError("mermaid graphic requires source or mermaid")
+        if self.kind == "svg" and not (self.source or self.svg):
+            raise ValueError("svg graphic requires source or svg")
         if self.gradient and (self.kind not in ("text", "rect", "ellipse") or self.style == "banner"):
             raise ValueError("gradient supports plain/impact text, rect and ellipse")
         if self.kind in ("arrow", "line") and (self.x2 is None or self.y2 is None):

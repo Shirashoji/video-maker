@@ -53,4 +53,11 @@ def resolve_input(root: Path, value: str) -> Path:
 
 
 def doctor() -> dict:
-    return {"ffmpeg": shutil.which("ffmpeg"), "ffprobe": shutil.which("ffprobe")}
+    from .web_render import find_chrome_executable, find_mmdc_executable, HAS_RESVG
+    return {
+        "ffmpeg": shutil.which("ffmpeg"),
+        "ffprobe": shutil.which("ffprobe"),
+        "chrome": find_chrome_executable(),
+        "mmdc": find_mmdc_executable(),
+        "resvg": HAS_RESVG,
+    }
