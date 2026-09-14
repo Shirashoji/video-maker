@@ -16,6 +16,16 @@ PYTHONPATH=src .venv/bin/python -m video_maker.cli --workspace workspace doctor
 PYTHONPATH=src .venv/bin/python -m video_maker.cli --workspace workspace render demo.json --preview
 ```
 
+## Continuing work across Claude, ChatGPT and Codex
+
+The same workspace is shared by every client on the Mac, and the user may have started this edit in another app. Conversation history does not carry over; the project does.
+
+- `workspace_info` lists each project with `name`, `notes`, `revision`, `modified` and `latest_render`. When the user asks to continue, pick the project from there and follow its `notes`.
+- Before editing a project call `read_project`. Save with `save_project(path, project, overwrite=true, base_revision=<revision from read_project>)`, and use the returned `revision` for the next save. A `Conflict` error means another session saved in between. Re-read, merge your change into the newer project, and save again. Never retry without `base_revision` just to get past a conflict.
+- Keep `project.notes` current: purpose, audience, decisions the user made, what remains and anything to verify. Do this when finishing a session or when the user says they will continue elsewhere. Write the notes in the user's language. Notes are never rendered.
+- To move an edit to another Mac or person, use `export_project(path, destination)`. It creates a `.videomaker.zip` with the JSON and every referenced asset. Unpack it with `import_project(bundle)`. Import never overwrites differing media; report such conflicts to the user. Mention asset licence terms before a bundle is shared with someone else.
+- Do not render the same project from two apps at once; each app runs its own render queue.
+
 Read `docs/project-format.md` in the repository for project fields and `examples/minimal.json` for a starting point. The authoritative machine-readable format is MCP `project_schema` or `docs/project.schema.json`.
 
 ## Coordinate systems

@@ -1,9 +1,12 @@
 import concurrent.futures
+import datetime
+import hashlib
 import json
 import re
 import threading
 import uuid
 import shutil
+import zipfile
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -11,6 +14,37 @@ from PIL import Image, ImageDraw
 from .engine import load, plan, render, validate
 from .media import ffmpeg, inside, probe, resolve_input, run
 from .models import Project
+
+BUNDLE_FORMAT = "video-maker-bundle"
+BUNDLE_SUFFIX = ".videomaker.zip"
+
+
+def revision_of(data: bytes) -> str:
+    """Content hash of a saved project; clients pass it back to detect concurrent edits."""
+    return hashlib.sha256(data).hexdigest()[:16]
+
+
+def timestamp(seconds: float | None = None) -> str:
+    moment = datetime.datetime.fromtimestamp(seconds, datetime.UTC) if seconds is not None \
+        else datetime.datetime.now(datetime.UTC)
+    return moment.isoformat(timespec="seconds")
+
+
+def file_sha256(path: Path) -> str:
+    with open(path, "rb") as f:
+        return hashlib.file_digest(f, "sha256").hexdigest()
+
+
+def asset_paths(project: Project) -> list[str]:
+    """Every workspace-relative file a project needs in order to render."""
+    paths = {project.font, project.music.source if project.music else None}
+    for scene in project.scenes:
+        paths.update([scene.source, scene.audio])
+        if scene.character:
+            paths.update([scene.character.image, scene.character.mouth_open])
+        paths.update(g.source for g in scene.graphics)
+        paths.update(e.source for e in scene.sound_effects)
+    return sorted(p for p in paths if p)
 
 
 class Service:
@@ -45,7 +79,15 @@ class Service:
         shutil.copyfile(path, destination)
         return {"path": str(destination.relative_to(self.root)), "original": str(path)}
 
-    def save(self, path: str, project: dict, overwrite=False):
+    def read(self, path: str):
+        target = inside(self.root, path)
+        data = target.read_bytes()
+        project = Project.model_validate_json(data)
+        return {"path": str(target.relative_to(self.root)), "revision": revision_of(data),
+                "modified": timestamp(target.stat().st_mtime),
+                "project": project.model_dump(mode="json")}
+
+    def save(self, path: str, project: dict, overwrite=False, base_revision: str | None = None):
         target = inside(self.root, path, exists=False)
         if target.suffix != ".json":
             raise ValueError("project path must end in .json")
@@ -55,19 +97,143 @@ class Service:
         if target.exists():
             if not overwrite:
                 raise ValueError("Project exists; set overwrite=true to revise it")
-            # Revisions remain available for undo/review.
             old = target.read_bytes()
-            backup = self.root / "revisions" / f"{uuid.uuid4().hex}.json"
+            current = revision_of(old)
+            # Claude and ChatGPT may edit the same workspace; refuse to silently drop
+            # the other session's save.
+            if base_revision and base_revision != current:
+                raise ValueError(f"Conflict: {path} changed since revision {base_revision} "
+                                 f"(now {current}). Call read_project again, merge the "
+                                 "changes and save with the new base_revision")
+            # Revisions remain available for undo/review, grouped per project.
+            stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S%fZ")
+            backup = (self.root / "revisions" / target.relative_to(self.root).with_suffix("")
+                      / f"{stamp}-{current}.json")
             backup.parent.mkdir(parents=True, exist_ok=True)
             backup.write_bytes(old)
-        target.write_text(value.model_dump_json(indent=2), encoding="utf-8")
-        return {"project": str(target), "valid": True}
+        elif base_revision:
+            raise ValueError(f"Conflict: {path} no longer exists; base_revision {base_revision} "
+                             "cannot be applied")
+        data = value.model_dump_json(indent=2).encode()
+        target.write_bytes(data)
+        return {"project": str(target), "valid": True, "revision": revision_of(data)}
+
+    def projects(self):
+        """Summaries of top-level projects, so a newly connected client can pick up the work."""
+        latest = {}
+        for status in (self.root / "jobs").glob("*.status.json"):
+            try:
+                job = json.loads(status.read_text())
+            except (OSError, ValueError):
+                continue
+            if job.get("status") != "complete" or not job.get("project"):
+                continue
+            finished = status.stat().st_mtime
+            if job["project"] not in latest or finished > latest[job["project"]]["finished"]:
+                latest[job["project"]] = {"job_id": job["id"], "preview": job.get("preview"),
+                                          "finished": finished,
+                                          "video": job.get("result", {}).get("video")}
+        summaries = []
+        for path in sorted(p for p in self.root.glob("*.json") if p.is_file()):
+            data = path.read_bytes()
+            entry = {"path": path.name, "revision": revision_of(data),
+                     "modified": timestamp(path.stat().st_mtime)}
+            try:
+                project = Project.model_validate_json(data)
+                entry.update(name=project.name, scenes=len(project.scenes), notes=project.notes)
+            except ValueError as error:
+                entry["error"] = str(error).splitlines()[0]
+            if path.name in latest:
+                render = latest[path.name]
+                entry["latest_render"] = {**render, "finished": timestamp(render["finished"])}
+            summaries.append(entry)
+        return summaries
+
+    def export_project(self, path: str, destination: str, overwrite=False):
+        """Pack a project and every asset it references into one zip for another machine or person."""
+        target = inside(self.root, path)
+        data = target.read_bytes()
+        project = Project.model_validate_json(data)
+        relative = target.relative_to(self.root).as_posix()
+        assets = [(a, inside(self.root, a)) for a in asset_paths(project)]
+        dest = Path(destination).expanduser().resolve()
+        bundle = dest / f"{target.stem}{BUNDLE_SUFFIX}" if dest.is_dir() else dest
+        if not bundle.parent.is_dir():
+            raise ValueError(f"Destination directory not found: {destination}")
+        if bundle.suffix != ".zip":
+            raise ValueError("destination must be a folder or a .zip file path")
+        if bundle.exists() and not overwrite:
+            raise ValueError(f"{bundle} exists; set overwrite=true to replace it")
+        manifest = {"format": BUNDLE_FORMAT, "version": 1, "project": relative,
+                    "revision": revision_of(data), "name": project.name, "notes": project.notes,
+                    "exported_at": timestamp(),
+                    "assets": [{"path": a, "sha256": file_sha256(p), "bytes": p.stat().st_size}
+                               for a, p in assets]}
+        partial = bundle.with_name(bundle.name + ".partial")
+        with zipfile.ZipFile(partial, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+            archive.writestr(relative, data)
+            for name, file in assets:
+                # Media is already compressed; storing it keeps large exports fast.
+                archive.write(file, name, compress_type=zipfile.ZIP_STORED)
+        partial.replace(bundle)
+        return {"bundle": str(bundle), "project": relative, "revision": manifest["revision"],
+                "assets": len(assets), "bytes": bundle.stat().st_size}
+
+    def import_project(self, bundle: str, path: str | None = None, overwrite=False,
+                       base_revision: str | None = None):
+        """Unpack an export_project bundle into this workspace, keeping relative asset paths."""
+        source = Path(bundle).expanduser().resolve()
+        if not source.is_file():
+            raise ValueError(f"Bundle not found: {bundle}")
+        with zipfile.ZipFile(source) as archive:
+            try:
+                manifest = json.loads(archive.read("manifest.json"))
+            except KeyError:
+                raise ValueError(f"{bundle} is not a Video Maker bundle (manifest.json missing)")
+            if manifest.get("format") != BUNDLE_FORMAT:
+                raise ValueError(f"{bundle} is not a Video Maker bundle")
+            project = Project.model_validate_json(archive.read(manifest["project"]))
+            target = inside(self.root, path or manifest["project"], exists=False)
+            if target.exists() and not overwrite:
+                raise ValueError(f"{target.relative_to(self.root)} exists; set overwrite=true "
+                                 "to replace it (the current version is kept in revisions/)")
+            planned, conflicts = [], []
+            for asset in manifest["assets"]:
+                dest = inside(self.root, asset["path"], exists=False)
+                if dest.suffix.lower() not in self.ALLOWED_IMPORTS:
+                    raise ValueError(f"Unsupported file type in bundle: {asset['path']}")
+                if dest.exists():
+                    if file_sha256(dest) != asset["sha256"]:
+                        conflicts.append(asset["path"])
+                    continue
+                planned.append((asset, dest))
+            # User media is never overwritten: a differing file under the same path
+            # must be resolved by a person.
+            if conflicts:
+                raise ValueError("Workspace already has different files at: "
+                                 f"{' '.join(conflicts)}. Move or rename them, then import again")
+            for asset, dest in planned:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                partial = dest.with_name(dest.name + ".partial")
+                with archive.open(asset["path"]) as reader, open(partial, "wb") as writer:
+                    shutil.copyfileobj(reader, writer, 1 << 20)
+                if file_sha256(partial) != asset["sha256"]:
+                    partial.unlink()
+                    raise ValueError(f"Bundle is corrupt: checksum mismatch for {asset['path']}")
+                partial.replace(dest)
+        saved = self.save(str(target.relative_to(self.root)), project.model_dump(mode="json"),
+                          overwrite, base_revision)
+        return {**saved, "assets_added": [a["path"] for a, _ in planned],
+                "assets_unchanged": len(manifest["assets"]) - len(planned),
+                "notes": project.notes, "exported_at": manifest.get("exported_at")}
 
     def start(self, path: str, preview=True, scenes=None, width=640):
         if not 160 <= width <= 3840:
             raise ValueError("width must be 160..3840")
         # Snapshot now, so queued jobs are not affected by later edits.
         project = load(self.root, path)
+        source = str(inside(self.root, path).relative_to(self.root))
         if scenes:
             known = {s.id for s in project.scenes}
             missing = [s for s in scenes if s not in known]
@@ -83,7 +249,9 @@ class Service:
         snapshot = self.root / "jobs" / f"{job_id}.json"
         snapshot.parent.mkdir(parents=True, exist_ok=True)
         snapshot.write_text(project.model_dump_json(indent=2))
-        self.jobs[job_id] = {"id": job_id, "status": "queued", "progress": "Queued"}
+        # The project path lets workspace_info point another client at the latest render.
+        self.jobs[job_id] = {"id": job_id, "status": "queued", "progress": "Queued",
+                             "project": source, "preview": preview, "scenes": scenes}
 
         def update(**values):
             with self.lock:

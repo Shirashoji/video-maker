@@ -28,6 +28,15 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("doctor")
     commands.add_parser("speakers")
+    commands.add_parser("projects")
+    export = commands.add_parser("export-project")
+    export.add_argument("project")
+    export.add_argument("destination", help="folder or .zip path")
+    export.add_argument("--overwrite", action="store_true")
+    bundle = commands.add_parser("import-project")
+    bundle.add_argument("bundle")
+    bundle.add_argument("--path", help="save the project under this workspace path")
+    bundle.add_argument("--overwrite", action="store_true")
     template = commands.add_parser("template")
     template.add_argument("--style", choices=["minimal", "colorful"], default="minimal")
     template.add_argument("--title", default="アイデアを、動かそう。")
@@ -61,6 +70,12 @@ def main():
                 result["voicevox_error"] = str(e)
         elif args.command == "speakers":
             result = Voicevox().speakers()
+        elif args.command == "projects":
+            result = Service(root).projects()
+        elif args.command == "export-project":
+            result = Service(root).export_project(args.project, args.destination, args.overwrite)
+        elif args.command == "import-project":
+            result = Service(root).import_project(args.bundle, args.path, args.overwrite)
         elif args.command == "template":
             result = keynote_template(args.style, args.title, args.subtitle, args.source)
         elif args.command == "validate":

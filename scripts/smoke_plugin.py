@@ -62,6 +62,17 @@ async def check(plugin: Path, workspace: Path):
                 assert not exported.isError, exported
                 delivered = json.loads(exported.content[0].text)['exported']
                 assert Path(delivered['video']).is_file(), delivered
+                # Handoff to another workspace: bundle, then import under a new name.
+                bundled = await client.call_tool('export_project', {'path': 'smoke.json',
+                                                                    'destination': outbox})
+                assert not bundled.isError, bundled
+                bundle = json.loads(bundled.content[0].text)['bundle']
+                imported = await client.call_tool('import_project', {
+                    'bundle': bundle, 'path': 'smoke-imported.json', 'overwrite': True})
+                assert not imported.isError, imported
+            info = json.loads((await client.call_tool('workspace_info', {})).content[0].text)
+            summary = {p['path']: p for p in info['projects']}
+            assert summary['smoke.json']['latest_render']['job_id'] == job_id, summary
             print(json.dumps(state, ensure_ascii=False, indent=2))
 
 

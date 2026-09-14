@@ -22,8 +22,12 @@ def create_server(root: Path):
 
     @mcp.tool()
     def workspace_info() -> dict:
-        """Get the persistent workspace and available top-level project JSON files."""
-        return {"workspace": str(service.root), "projects": sorted(p.name for p in service.root.glob("*.json") if p.is_file())}
+        """Get the persistent workspace and its projects: name, notes (handoff memo), revision, last modified time and latest completed render.
+
+        Every client using this workspace (Claude Cowork, ChatGPT Work, Codex, CLI) sees the same
+        projects. Call it first, then read_project the one to continue and follow its notes.
+        """
+        return {"workspace": str(service.root), "projects": service.projects()}
 
     @mcp.tool()
     def environment_status() -> dict:
@@ -134,13 +138,30 @@ def create_server(root: Path):
 
     @mcp.tool()
     def read_project(path: str) -> dict:
-        """Read a saved editable timeline."""
-        return load(service.root, path).model_dump(mode="json")
+        """Read a saved editable timeline. Returns project, notes inside it, and revision; pass revision as save_project base_revision."""
+        return service.read(path)
 
     @mcp.tool()
-    def save_project(path: str, project: dict, overwrite: bool = False) -> dict:
-        """Validate and save a JSON project; overwrites retain a revision for undo."""
-        return service.save(path, project, overwrite)
+    def save_project(path: str, project: dict, overwrite: bool = False,
+                     base_revision: str | None = None) -> dict:
+        """Validate and save a JSON project; overwrites retain a revision for undo.
+
+        Pass the revision from read_project as base_revision: if another session (for example
+        ChatGPT Work while you edit in Claude Cowork) saved in between, the save is refused
+        instead of discarding their edit. Keep project.notes current for the next editor.
+        """
+        return service.save(path, project, overwrite, base_revision)
+
+    @mcp.tool()
+    def export_project(path: str, destination: str, overwrite: bool = False) -> dict:
+        """Pack a project JSON and every asset it references into one .videomaker.zip in a user-chosen folder, for another Mac, person or workspace. Renders are not included."""
+        return service.export_project(path, destination, overwrite)
+
+    @mcp.tool()
+    def import_project(bundle: str, path: str | None = None, overwrite: bool = False,
+                       base_revision: str | None = None) -> dict:
+        """Unpack a .videomaker.zip from export_project into this workspace. Assets keep their relative paths; identical files are reused and differing ones are never overwritten. Read the returned notes before editing."""
+        return service.import_project(bundle, path, overwrite, base_revision)
 
     @mcp.tool()
     def validate_project(path: str) -> dict:

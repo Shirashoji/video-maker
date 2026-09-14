@@ -8,6 +8,7 @@ JSONのパスは `workspace` 相対です。MCP `import_asset` にユーザー�
 {
   "version": 1,
   "name": "操作説明",
+  "notes": "目的: 新入生向け。決定: 話者はずんだもん。残作業: step-2の字幕位置の確認",
   "width": 1920,
   "height": 1080,
   "fps": 30,
@@ -117,9 +118,15 @@ MCP `render_preview` は既定で幅640に縮小します。`scenes: ["step-2"]`
 
 完成物をワークスペース外に出すには MCP `export_render(job_id, destination, items, overwrite)` を使います。`items` は `video` / `captions` / `project` / `timeline` / `credits` から選び、既定は動画とSRTです。`destination` はフォルダ、または単一項目のときはファイルパスも指定できます。既存ファイルは `overwrite=true` がなければ上書きしません。
 
-プロジェクト上書き時は `revisions/` に旧JSONを保存します。レンダーごとに新しい `renders/<id>/` を作るため、既存出力を上書きしません。`project.json`、確定した `timeline.json`、`video.mp4`、`captions.srt`、`credits.txt`、シーン別動画・音声を保持します。音声キャッシュは `.cache/voicevox/` に保存します。
+`notes` は、次に編集する人やAI向けの引き継ぎメモです（最大4000文字）。動画・字幕・SRTには出ません。
 
-`credits` はサイドカーの文字列です。動画内への表示は必要に応じてクレジットシーンを追加してください。出力フォルダには絶対パスも含まれるため、素材も含めた他PCへの移行は元プロジェクトJSONと `assets/` を使います。
+`read_project` は、プロジェクト本体・`revision`（内容のハッシュ）・更新時刻を返します。`save_project` に `base_revision` を渡すと、読んだ後に別のセッション（別のアプリなど）が保存していた場合は `Conflict` で拒否します。
+
+プロジェクトを素材ごと別の環境へ移すには `export_project` / `import_project` を使います（`.videomaker.zip`）。詳しくは [編集の引き継ぎ](sharing.md) を参照してください。
+
+プロジェクト上書き時は `revisions/<プロジェクト名>/<UTC時刻>-<revision>.json` に旧JSONを保存します。レンダーごとに新しい `renders/<id>/` を作るため、既存出力を上書きしません。`project.json`、確定した `timeline.json`、`video.mp4`、`captions.srt`、`credits.txt`、シーン別動画・音声を保持します。音声キャッシュは `.cache/voicevox/` に保存します。
+
+`credits` はサイドカーの文字列です。動画内への表示は必要に応じてクレジットシーンを追加してください。出力フォルダには絶対パスも含まれるため、他PCへの移行には出力フォルダではなく `export_project` で作ったzip（プロジェクトJSONと参照素材）を使います。
 
 MCPのレンダーはジョブ方式・一件ずつの処理です。再起動時に実行中だったジョブは `interrupted` と報告し、再実行が必要です。キャンセル・途中再開・自動キャッシュ掃除は未実装です。長時間・4K・多数シーンの負荷試験はしていません。
 

@@ -10,6 +10,7 @@ GUIの動画編集ソフトに依存せず、FFmpegとVOICEVOXを用いて本ツ
 - 指定時刻のフレームを原寸で1枚取り出して内容を説明・確認する（`extract_frame`）。サムネイルでは読めない画面内の文字も確認でき、取り出したPNGは図解素材として再利用可
 - レンダー前に確定尺・字幕時刻・図形の表示時刻・カメラの実効注視点を返すドライラン（`plan_timeline`）
 - 完成した動画・SRT・編集JSONのワークスペース外への書き出し（`export_render`）
+- Claude・ChatGPT・Codex間の編集の引き継ぎ：同じワークスペースの共有、引き継ぎメモ（`notes`）、同時編集の衝突検出（`base_revision`）、素材込みのプロジェクトzip（`export_project` / `import_project`）
 - シーンの順番変更、切り出し、0.1〜20倍速、領域クロップ、静止画の挿入
 - シーン内の区間ごとの早送り・スローモーション（`speed_ramps`）。待ち時間は畳み、速い操作は引き伸ばす。元音声も追従
 - VOICEVOXの話者選択、台本から音声合成、実際の音声長に合わせた字幕
@@ -25,28 +26,67 @@ GUIの動画編集ソフトに依存せず、FFmpegとVOICEVOXを用いて本ツ
 
 AIが素材を理解して構成を決める部分は、接続先のCodex等が担当します。レンダラー自身に意味理解や文字起こし機能はありません。APIキーを別途用意する必要はなく、既存のAIクライアントからツールを呼びます。
 
-## Claude Coworkで使う
+## 導入（Claude / ChatGPT）
 
-`.venv/bin/python scripts/build_plugin.py` を実行し、Claude Desktopの「カスタマイズ」→「プラグイン」から `dist/video-maker.plugin`（またはZIP）をアップロードします。VOICEVOXを起動し、新しいCoworkタスクで「Video Makerで素材一覧と接続状態を確認して」と依頼してください。[導入・接続手順](docs/cowork-plugin.md)
+1つのビルドから、ClaudeとChatGPTの両方に同じプラグインを入れられます。どちらもMacのデスクトップアプリで、ローカルMCPとして動きます。
 
-## ChatGPT Workで使う（Agent Plugin）
+**共通の準備**
 
-1. VOICEVOXを起動する。
-2. ChatGPTデスクトップのPluginsで **Video Maker** を導入する。
-3. 新しいWorkの会話で `@Video Maker` を選び、素材の場所と編集したい内容を伝える。
-4. 同梱の `video-editing` SkillとMCPが取り込み・構成・プレビュー・修正・本番出力を行う。
+1. Macに次を用意する。
+   - VOICEVOX（アプリを起動しておく）
+   - `brew install uv ffmpeg`
+2. リポジトリで次を実行する。
 
-例：
+   ```sh
+   uv sync --extra dev
+   .venv/bin/python scripts/build_plugin.py
+   ```
+
+   `dist/` にアップロード用のzipと、ローカルマーケットプレイスができます。
+
+**使う場所ごとの手順**
+
+| 使う場所 | 手順 | 詳細 |
+| --- | --- | --- |
+| **Claude Cowork**（Claude Desktop） | Coworkタブ → **Customize → Plugins** → Personal pluginsの **＋** → **Upload plugin** で `dist/video-maker.zip` を選ぶ（`.zip` のみ受け付けます） | [Claudeへの導入](docs/cowork-plugin.md) |
+| **Claude Code** | `claude plugin marketplace add <repo>/dist` → `claude plugin install video-maker@video-maker-local` | [Claudeへの導入](docs/cowork-plugin.md#3b-claude-code-に導入する) |
+| **ChatGPT Work / Codex**（ChatGPTデスクトップ） | `codex plugin marketplace add <repo>/dist` → `codex plugin add video-maker@video-maker-local` → ChatGPTアプリを再起動 | [ChatGPTへの導入](docs/work-plugin.md) |
+
+**導入の確認**
+
+導入後は、**新しい**タスクまたは会話で次のように依頼します。
+
+> Video Makerで workspace_info と environment_status を実行して、保存先とVOICEVOXの接続を確認して。
+
+**注意**
+
+- ローカルMCPを含むため、次の環境では動きません。
+  - ブラウザ版ChatGPT
+  - クラウドで実行されるCoworkセッション
+- 初回起動時に、uvが固定済みの依存関係をダウンロードします。
+- 保存場所は `VIDEO_MAKER_WORKSPACE` / `VIDEO_MAKER_RUNTIME` で変更できます。
+  - 素材とプロジェクト：`~/Movies/VideoMaker`
+  - 実行環境：`~/Library/Caches/video-maker/venv`
+  - どちらもプラグインの更新や削除では消えません。
+
+**依頼の例**
 
 > `/Users/.../録画.mov` を使って、ずんだもんの1分の操作説明動画を作って。重要な操作を見せながら説明し、字幕と口パクを付けて。まずプレビューを確認してから本番を書き出して。
 
-素材をアップロードする必要はありません。プラグインの既定保存先は `~/Movies/VideoMaker` で、MCP `workspace_info` で確認できます。開発用の立ち絵などのアセットはGitHubリポジトリには含まれていません。ローカルでのアセットの配置方法やクレジットについては、[アセットの導入方法](docs/assets-setup.md)を参照してください。別キャラクターはPNGを指定するか、PSDをインポートして差分を選べます。話者はVOICEVOXのインストール済み一覧から指定します。
+- 素材をチャットにアップロードする必要はありません。
+- 開発用の立ち絵などのアセットは、GitHubリポジトリには含まれていません。配置方法とクレジットは [アセットの導入方法](docs/assets-setup.md) を参照してください。
 
-`.codex-plugin/plugin.json`、`.mcp.json`、Skill、Pythonコードを同梱しています。ローカルMCPを含むため、**ChatGPTデスクトップ専用**です。ブラウザ版WorkからMacのVOICEVOXへ直接接続する構成ではありません。[公式の対応範囲](https://learn.chatgpt.com/docs/enterprise/plugin-management#desktop-only-plugins)
+## ClaudeとChatGPTで編集を引き継ぐ
 
-ビルドは `.venv/bin/python scripts/build_plugin.py`。`dist/video-maker/` が導入用フォルダ、`dist/video-maker.zip` が共有用アーカイブです。原本のPSD・立ち絵・動画・生成済み音声はアーカイブに同梱しません。現在の導入手順と検証範囲は [Work導入手順](docs/work-plugin.md) を参照してください。
+どのアプリから使っても、編集データは同じ `~/Movies/VideoMaker` に保存されます。そのため、**同じMacならファイルを移さずに**、Claude Coworkで作った編集をChatGPT Workで続けられます（逆も同じ）。
 
-初回起動時に `uv` が固定済みの依存関係を取得するためネット接続が必要です。実行環境は `~/Library/Caches/video-maker/venv` に作り、素材はプラグインの更新で消えない別フォルダに保存します。`VIDEO_MAKER_RUNTIME` / `VIDEO_MAKER_WORKSPACE` で変更できます。
+- **終えるとき**：「notesに目的・決めたこと・残作業を書いて保存して」と頼む。
+  - `notes` はプロジェクトJSONに入る引き継ぎメモです。
+- **始めるとき**：新しい会話で「workspace_infoを見て、notesを読んでから続きを編集して」と頼む。
+- **同時に編集したとき**：`save_project` の `base_revision` により、相手の保存を上書きせず `Conflict` として止まります。
+- **別のMacや別の人に渡すとき**：`export_project` で素材ごと `.videomaker.zip` にまとめ、相手が `import_project` で取り込みます。
+
+詳しくは [編集の引き継ぎ](docs/sharing.md) を参照してください。
 
 MCPが未接続でも、このフォルダの `AGENTS.md` とSkillからCLIを使って同じ編集ができます。
 

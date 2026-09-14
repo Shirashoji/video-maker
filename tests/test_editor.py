@@ -67,7 +67,7 @@ def test_revisions(tmp_path):
     s.save('project.json',p)
     with pytest.raises(ValueError,match='exists'): s.save('project.json',p)
     p['name']='Updated'; s.save('project.json',p,True)
-    assert len(list((tmp_path/'revisions').glob('*.json')))==1
+    assert len(list((tmp_path/'revisions'/'project').glob('*.json')))==1
     assert load(tmp_path,'project.json').name=='Updated'
 
 

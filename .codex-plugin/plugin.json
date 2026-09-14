@@ -1,7 +1,7 @@
 {
   "name": "video-maker",
-  "version": "0.1.0+codex.20260908061438",
-  "description": "ChatGPT Work\u3067\u3001\u753b\u9762\u9332\u753b\u3068VOICEVOX\u30fb\u7acb\u3061\u7d75\u304b\u3089\u89e3\u8aac\u52d5\u753b\u3092\u7de8\u96c6\u3059\u308b\u30ed\u30fc\u30ab\u30eb\u30c4\u30fc\u30eb\u3002",
+  "version": "0.1.0",
+  "description": "ChatGPT Workで、画面録画とVOICEVOX・立ち絵から解説動画を編集するローカルツール。",
   "author": {
     "name": "takuma"
   },
@@ -16,8 +16,8 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Video Maker",
-    "shortDescription": "\u9332\u753b\u7d20\u6750\u3092\u3001VOICEVOX\u3068\u7acb\u3061\u7d75\u3067\u89e3\u8aac\u52d5\u753b\u306b",
-    "longDescription": "ChatGPT\u30c7\u30b9\u30af\u30c8\u30c3\u30d7\u306eWork\u3067\u4f7f\u3046\u52d5\u753b\u7de8\u96c6\u30d7\u30e9\u30b0\u30a4\u30f3\u3067\u3059\u3002\u7d20\u6750\u306e\u78ba\u8a8d\u30fb\u30ab\u30c3\u30c8\u30fbVOICEVOX\u97f3\u58f0\u30fbPSD\u7acb\u3061\u7d75\u30fb\u53e3\u30d1\u30af\u30fb\u65e5\u672c\u8a9e\u5b57\u5e55\u30fb\u5834\u9762\u8ee2\u63db\u30fbBGM\u304b\u3089MP4\u3092\u66f8\u304d\u51fa\u3057\u307e\u3059\u3002\u6620\u50cf\u751f\u6210\u306f\u884c\u3044\u307e\u305b\u3093\u3002Mac\u306bVOICEVOX\u3001FFmpeg\u3001uv\u304c\u5fc5\u8981\u3067\u3059\u3002",
+    "shortDescription": "録画素材を、VOICEVOXと立ち絵で解説動画に",
+    "longDescription": "ChatGPTデスクトップのWorkで使う動画編集プラグインです。素材の確認・カット・VOICEVOX音声・PSD立ち絵・口パク・日本語字幕・場面転換・BGMからMP4を書き出します。映像生成は行いません。MacにVOICEVOX、FFmpeg、uvが必要です。",
     "developerName": "takuma",
     "category": "Productivity",
     "capabilities": [
@@ -25,9 +25,9 @@
       "Write"
     ],
     "defaultPrompt": [
-      "\u753b\u9762\u9332\u753b\u3092\u4f7f\u3063\u3066\u3001\u305a\u3093\u3060\u3082\u3093\u306e\u5b57\u5e55\u30fb\u53e3\u30d1\u30af\u4ed8\u304d\u89e3\u8aac\u52d5\u753b\u3092\u4f5c\u3063\u3066\u3002",
-      "\u7acb\u3061\u7d75\u306ePSD\u3092\u53d6\u308a\u8fbc\u3093\u3067\u3001\u5225\u306e\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u306b\u5dee\u3057\u66ff\u3048\u3066\u3002",
-      "\u52d5\u753b\u306e\u4e0d\u8981\u306a\u90e8\u5206\u3092\u30ab\u30c3\u30c8\u3057\u3066\u3001\u5834\u9762\u8ee2\u63db\u3068BGM\u3092\u4ed8\u3051\u3066\u3002"
+      "画面録画を使って、ずんだもんの字幕・口パク付き解説動画を作って。",
+      "立ち絵のPSDを取り込んで、別のキャラクターに差し替えて。",
+      "動画の不要な部分をカットして、場面転換とBGMを付けて。"
     ],
     "brandColor": "#31BFA3"
   }

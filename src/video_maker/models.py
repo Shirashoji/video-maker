@@ -228,6 +228,9 @@ class Music(Model):
 class Project(Model):
     version: Literal[1] = 1
     name: str = Field(min_length=1, max_length=120)
+    # Handoff memo carried inside the project: intent, decisions and remaining work, so
+    # a different AI client (Claude Cowork, ChatGPT Work, Codex) can continue the edit.
+    notes: str | None = Field(default=None, max_length=4000)
     width: int = Field(default=1280, ge=320, le=3840, multiple_of=2)
     height: int = Field(default=720, ge=240, le=2160, multiple_of=2)
     fps: Literal[24, 25, 30, 60] = 30

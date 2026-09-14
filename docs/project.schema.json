@@ -944,6 +944,19 @@
       "title": "Name",
       "type": "string"
     },
+    "notes": {
+      "anyOf": [
+        {
+          "maxLength": 4000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    },
     "width": {
       "default": 1280,
       "maximum": 3840,
