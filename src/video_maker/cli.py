@@ -42,6 +42,15 @@ def main():
     template.add_argument("--title", default="アイデアを、動かそう。")
     template.add_argument("--subtitle", default="映像と図解で、もっと伝わる。")
     template.add_argument("--source")
+    r_asset = commands.add_parser("render-asset")
+    r_asset.add_argument("source", help="path to .html, .mmd, .svg, or raw code")
+    r_asset.add_argument("--output", help="custom output png path")
+    r_asset.add_argument("--width", type=int, default=1920)
+    r_asset.add_argument("--height", type=int, default=1080)
+    r_asset.add_argument("--theme", choices=["default", "dark", "forest", "neutral"], default="dark")
+    a_tmpl = commands.add_parser("asset-template")
+    a_tmpl.add_argument("--kind", choices=["html", "mermaid"], default="html")
+    a_tmpl.add_argument("--variant", default="features")
     for name in ["validate", "plan", "render"]:
         sub = commands.add_parser(name)
         sub.add_argument("project")
@@ -78,6 +87,10 @@ def main():
             result = Service(root).import_project(args.bundle, args.path, args.overwrite)
         elif args.command == "template":
             result = keynote_template(args.style, args.title, args.subtitle, args.source)
+        elif args.command == "render-asset":
+            result = Service(root).render_asset(args.source, output=args.output, width=args.width, height=args.height, theme=args.theme)
+        elif args.command == "asset-template":
+            result = Service(root).asset_template(kind=args.kind, variant=args.variant)
         elif args.command == "validate":
             result = validate(root, load(root, args.project))
         elif args.command == "plan":
