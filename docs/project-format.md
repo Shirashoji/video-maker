@@ -144,17 +144,20 @@ MCPのレンダーはジョブ方式・一件ずつの処理です。再起動�
 ]
 ```
 
-- `kind`: `text` / `rect`（角丸矩形）/ `ellipse` / `arrow` / `line`。配列の後の要素が手前になります。描画順は元映像 → graphics → 立ち絵 → title → 字幕です。
-- `x,y,width,height`: 出力画面に対する比率。`x,y` は左上、矢印・線のみ始点です。`x2,y2` は矢印・線の終点。映像内の座標ではありません。負の位置も使え、画面外はクリップされます。
+- `kind`: `text` / `rect`（角丸矩形）/ `ellipse` / `arrow` / `line` / `image` / `html` / `mermaid` / `svg`。配列の後の要素が手前になります。描画順は元映像 → graphics → 立ち絵 → title → 字幕です。
+- `html`: `source: "assets/slides/intro.html"` または `html: "<div class='card'>...</div>"`。Headless Chrome / Chromium で透過PNGとしてレンダリングし、動画に合成します。Web標準のFlexbox/Gridで崩れないスライドを作成できます。
+- `mermaid`: `source: "assets/diagrams/flow.mmd"` または `mermaid: "graph TD\n A-->B"`。Mermaid CLI（mmdc）で透過ダイアグラムとしてレンダリングします。`theme` は `dark`（既定）/ `default` / `forest` / `neutral`。
+- `svg`: `source: "assets/diagrams/logo.svg"` または `svg: "<svg ...>"`。resvg-py で直接高精度にラスタライズします。
+- `x,y,width,height`: 出力画面に対する比率。`x,y` は左上、矢印・線のみ始点です。`x2,y2` は矢印・線の終点。全画面スライドなら `x:0, y:0, width:1, height:1` です。
 - `fill,stroke,panel`: `#RRGGBB` または透過度付き `#RRGGBBAA`。`stroke_width,radius,font_size` は画面高さに対する比率なのでプレビューでも配置が揃います。文字は領域内で折り返し・縮小します。
 - テロップは `kind:"text"` と `style:"impact"`（縁取り）または `style:"banner"`（`panel` 色の帯）で作ります。`plain` は通常テキスト、`align` は `left/center/right`。字幕とは独立し、SRTには入りません。
 - `start,end`: シーン冒頭からの秒、または `"scene_end"` / `"scene_end-0.5"` の相対指定。`end` 省略時はシーン終了まで。表示範囲は start 以上、end 未満。確定した尺からはみ出す要素はレンダー時にエラーになります。尺が未確定のうちは `plan_timeline` で確定させるか相対指定を使ってください。
-- `enter,exit`: `none/fade/slide_left/slide_up/pop`。`animation_seconds` は既定0.3秒。短い表示は表示時間の半分に制限されます。
-- `keyframes`: 要素の `start` からの秒 `time` と絶対位置 `x,y`、`scale`（既定1）、`opacity`（既定1）。時刻は昇順・重複不可。先頭以前・末尾以後は端の値を維持。`easing` はそのキーから次までの `linear/ease_in_out/hold`。拡縮は要素の中心基準で、線・矢印の形状も一緒に動きます。要素の `opacity`、登場・退場効果とも組み合わせられます。
+- `enter,exit`: `none/fade/slide_left/slide_up/pop`。`animation_seconds` は既定0.3秒。短い表示は表示時間の半分に制限されます。HTMLやMermaidにも同様に適用されます。
+- `keyframes`: 要素の `start` からの秒 `time` と絶対位置 `x,y`、`scale`（既定1）、`opacity`（既定1）。時刻は昇順・重複不可。先頭以前・末尾以後は端の値を維持。`easing` はそのキーから次までの `linear/ease_in_out/ease_out/hold`。拡縮は要素の中心基準で、HTMLやMermaidの画像も一緒に動きます。
 
-AIは最初に実際の録画を確認し、短いテロップ、図解スライド、録画の実演を交互に配置してください。録画を全面に見せる場面では図を小さくし、重要なUIと字幕領域を避けます。ナレーションと図の出現を合わせるには `plan_timeline`（またはプレビューの `timeline.json`）の音声・字幕時刻を確認して `start` を調整します。
+AIは複雑な図形を手計算で座標配置する代わりに、HTMLスライド（Flexbox）やMermaidを活用してください。MCP `render_asset(source)`（CLI: `render-asset`）を使えば、動画全体をレンダーすることなく即座に1枚の透過PNGとしてプレビュー確認（自己検証）できます。また、MCP `asset_template`（CLI: `asset-template`）で洗練されたHTMLスライドやMermaidの雛形を取得できます。
 
-内部では要素をPillowで描画し、フレーム単位の透過動画をFFmpegで合成します。任意のPython/JavaScriptの実行、HTML/CSS、SVG読み込み、PowerPointのアニメーション取り込みには対応しません。長尺・4Kのアニメーションは描画時間と中間ファイル容量が増えるため、まずプレビューで確認してください。
+内部では静的要素をPillow（テキスト・図形）、Headless Chrome（HTML）、Mermaid CLI（Mermaid）、resvg-py（SVG）で透過ラスタライズし、フレーム単位の透過動画をFFmpegで合成します。実例は `examples/html-mermaid-showcase.json` を参照してください。長尺・4Kのアニメーションはまずプレビューで確認してください。
 
 ## キーノート風の構成と仕上げ
 

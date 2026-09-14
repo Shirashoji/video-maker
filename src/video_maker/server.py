@@ -188,6 +188,18 @@ def create_server(root: Path):
         """Get queued/running/complete/failed/interrupted status and output paths."""
         return service.status(job_id)
 
+    @mcp.tool()
+    def render_asset(source: str, output: str | None = None, width: int = 1920, height: int = 1080,
+                     theme: Literal["default", "dark", "forest", "neutral"] = "dark") -> dict:
+        """Render an HTML, Mermaid, or SVG asset (or code) to transparent PNG for instant preview and inspection before adding to project."""
+        return service.render_asset(source, output=output, width=width, height=height, theme=theme)
+
+    @mcp.tool()
+    def asset_template(kind: Literal["html", "mermaid"] = "html",
+                       variant: Literal["hero", "features", "comparison", "stats", "flowchart", "sequence", "architecture"] = "features") -> dict:
+        """Get starter template code for 16:9 HTML slides or Mermaid diagrams."""
+        return service.asset_template(kind=kind, variant=variant)
+
     return mcp
 
 

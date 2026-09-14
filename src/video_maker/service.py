@@ -57,7 +57,7 @@ class Service:
 
     ALLOWED_IMPORTS = {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".png", ".jpg", ".jpeg",
                        ".webp", ".bmp", ".wav", ".mp3", ".m4a", ".flac", ".ogg", ".psd",
-                       ".ttf", ".otf", ".ttc"}
+                       ".ttf", ".otf", ".ttc", ".svg", ".svgz", ".html", ".htm", ".mmd", ".mermaid"}
 
     def import_asset(self, source: str):
         """Copy a user-selected local asset without modifying the original."""
@@ -416,3 +416,63 @@ class Service:
         ends = re.findall(r"silence_end: ([\d.]+)", p.stderr)
         return {"silences": [{"start": float(a), "end": float(b)} for a, b in zip(starts, ends)],
                 "note": "Candidate cuts only. Inspect screen content before removing quiet sections."}
+
+    def render_asset(self, source: str, output: str | None = None, width: int = 1920, height: int = 1080, theme: str = "dark") -> dict:
+        """Render an HTML, Mermaid, or SVG asset (or raw code) into a transparent PNG for instant preview and inspection."""
+        from .web_render import render_html_to_image, render_mermaid_to_image, render_svg_to_image
+
+        is_file = False
+        resolved_path = None
+        trimmed = source.strip()
+        is_code = trimmed.startswith(("<", "graph ", "flowchart ", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "gantt"))
+
+        if not is_code:
+            direct = Path(source)
+            if not direct.is_absolute():
+                direct = inside(self.root, source)
+            if direct.is_file():
+                is_file = True
+                resolved_path = direct
+
+        ext = resolved_path.suffix.lower() if is_file else ""
+        if ext in (".html", ".htm") or "<html" in source.lower() or "<div" in source.lower():
+            im = render_html_to_image(str(resolved_path or source), width=width, height=height, root=self.root)
+        elif ext in (".mmd", ".mermaid") or any(trimmed.startswith(kw) for kw in ["graph", "flowchart", "sequenceDiagram", "classDiagram", "stateDiagram", "erDiagram", "gantt"]):
+            im = render_mermaid_to_image(str(resolved_path or source), width=width, height=height, theme=theme, root=self.root)
+        elif ext in (".svg", ".svgz") or "<svg" in source.lower():
+            im = render_svg_to_image(str(resolved_path or source), width=width, height=height, root=self.root)
+        else:
+            raise ValueError(f"Unsupported asset format for preview: {source[:100]}")
+
+        if output:
+            out_path = inside(self.root, output, exists=False)
+        else:
+            preview_dir = self.root / "renders" / "assets"
+            preview_dir.mkdir(parents=True, exist_ok=True)
+            stem = resolved_path.stem if is_file else f"asset_{uuid.uuid4().hex[:8]}"
+            out_path = preview_dir / f"{stem}.png"
+
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        im.save(out_path, "PNG")
+        return {
+            "image": str(out_path),
+            "relative_path": str(out_path.relative_to(self.root)),
+            "width": im.width,
+            "height": im.height,
+        }
+
+    def asset_template(self, kind: str = "html", variant: str = "features") -> dict:
+        """Get template code for HTML slides or Mermaid diagrams."""
+        from .templates import slide_template, mermaid_template
+        if kind == "html":
+            valid_variants = ("hero", "features", "comparison", "stats")
+            v = variant if variant in valid_variants else "features"
+            content = slide_template(variant=v)
+            return {"kind": "html", "variant": v, "content": content}
+        elif kind == "mermaid":
+            valid_variants = ("flowchart", "sequence", "architecture")
+            v = variant if variant in valid_variants else "flowchart"
+            content = mermaid_template(variant=v)
+            return {"kind": "mermaid", "variant": v, "content": content}
+        else:
+            raise ValueError(f"Unknown template kind: {kind}. Choose 'html' or 'mermaid'.")

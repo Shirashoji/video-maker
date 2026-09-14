@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "name": "HTML & Mermaid Showcase",
+  "notes": "HTMLスライド、Mermaidダイアグラム、SVGロゴを活用した最新の動画編集サンプル",
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "transition_seconds": 0.5,
+  "scenes": [
+    {
+      "id": "scene-intro",
+      "duration": 4.0,
+      "background": "#0b0f19",
+      "graphics": [
+        {
+          "kind": "html",
+          "source": "examples/slides/intro.html",
+          "x": 0.0,
+          "y": 0.0,
+          "width": 1.0,
+          "height": 1.0,
+          "enter": "fade",
+          "exit": "slide_left"
+        },
+        {
+          "kind": "svg",
+          "source": "examples/diagrams/logo.svg",
+          "x": 0.04,
+          "y": 0.05,
+          "width": 0.08,
+          "height": 0.08,
+          "enter": "pop"
+        }
+      ]
+    },
+    {
+      "id": "scene-diagram",
+      "duration": 5.0,
+      "transition": "fade",
+      "background": "#0b0f19",
+      "graphics": [
+        {
+          "kind": "text",
+          "text": "システム構成・連携フロー",
+          "x": 0.1,
+          "y": 0.08,
+          "width": 0.8,
+          "height": 0.1,
+          "font_size": 0.06,
+          "style": "impact",
+          "fill": "#38bdf8",
+          "enter": "fade"
+        },
+        {
+          "kind": "mermaid",
+          "source": "examples/diagrams/architecture.mmd",
+          "theme": "dark",
+          "x": 0.2,
+          "y": 0.22,
+          "width": 0.6,
+          "height": 0.68,
+          "enter": "slide_up",
+          "exit": "fade",
+          "keyframes": [
+            {"time": 0.0, "x": 0.2, "y": 0.22, "scale": 1.0},
+            {"time": 2.5, "x": 0.2, "y": 0.22, "scale": 1.03, "easing": "ease_out"}
+          ]
+        }
+      ]
+    }
+  ]
+}

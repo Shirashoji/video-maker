@@ -1,0 +1,22 @@
+graph TD
+    A[ユーザープロンプト] --> B[AI Agent]
+    B -->|スライド構成| C[HTML / CSS]
+    B -->|プロセス図解| D[Mermaid]
+    B -->|タイムライン編集| E[project.json]
+
+    C --> F[Headless Chrome]
+    D --> G[Mermaid CLI]
+
+    F -->|透過PNG| H[Video Maker エンジン]
+    G -->|透過PNG| H
+    E --> H
+
+    H -->|FFmpeg合成| I[高品質 MP4動画]
+
+    style A fill:#38bdf8,stroke:#0284c7,stroke-width:2px,color:#fff
+    style B fill:#818cf8,stroke:#4f46e5,stroke-width:2px,color:#fff
+    style C fill:#f472b6,stroke:#db2777,stroke-width:2px,color:#fff
+    style D fill:#34d399,stroke:#059669,stroke-width:2px,color:#fff
+    style E fill:#fbbf24,stroke:#d97706,stroke-width:2px,color:#fff
+    style H fill:#6366f1,stroke:#4338ca,stroke-width:2px,color:#fff
+    style I fill:#10b981,stroke:#047857,stroke-width:2px,color:#fff
